@@ -1,0 +1,25 @@
+{
+    "repository": {
+        "url": "https://github.com/Eobart96/my-space-diary.git",
+        "branch": "main",
+        "username": "Eobart96",
+        "repoName": "my-space-diary"
+    },
+    "autoSync": {
+        "enabled": true,
+        "interval": 300000,
+        "commitMessage": "🚀 Auto-sync: My Space Diary Update"
+    },
+    "build": {
+        "autoBuild": true,
+        "outputDir": "dist",
+        "excludeFiles": [
+            "node_modules",
+            ".git",
+            "*.log",
+            "*.tmp",
+            "archive",
+            "*.apk"
+        ]
+    }
+}
