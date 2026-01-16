@@ -52,8 +52,6 @@ class MainActivity : AppCompatActivity() {
             
             // Оптимизации
             cacheMode = WebSettings.LOAD_DEFAULT
-            setAppCacheEnabled(true)
-            setAppCachePath(cacheDir.absolutePath)
         }
         
         webView.webViewClient = object : WebViewClient() {
