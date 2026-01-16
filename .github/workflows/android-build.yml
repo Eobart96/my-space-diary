@@ -21,7 +21,9 @@ jobs:
           cache: 'gradle'
 
       - name: Make Gradle executable
-        run: chmod +x ./gradlew
+        run: |
+          chmod +x ./gradlew
+          dos2unix ./gradlew
         working-directory: ./android
 
       - name: Build APK
