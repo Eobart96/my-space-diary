@@ -1,122 +1,124 @@
-# My Space - Личный дневник
+# My Space - Diary & Nutrition App
 
-🌌 Ваша космическая вселенная мыслей
+Production-ready web application with diary and nutrition tracking modules, now with product management system.
 
-## Описание
+## Technology Stack
 
-My Space - это современное веб-приложение для ведения личного дневника с красивым космическим дизайном. Приложение позволяет создавать, редактировать и хранить ваши ежедневные записи в безопасном и удобном интерфейсе.
+- **Backend**: Node.js + Express + TypeScript + PostgreSQL
+- **Frontend**: React + TypeScript + TailwindCSS + Vite
+- **Authentication**: JWT tokens
+- **Database**: PostgreSQL with proper indexing
+- **Storage**: localStorage for client-side data persistence
+- **Deployment**: Docker + docker-compose
 
-## ✨ Возможности
-
-- 📝 **Создание записей**: Легко создавайте ежедневные записи с текстом и датой
-- 🎨 **Красивый интерфейс**: Современный дизайн с космической тематикой
-- 📱 **Адаптивный дизайн**: Работает на всех устройствах - телефонах, планшетах и компьютерах
-- 💾 **Локальное хранение**: Ваши записи сохраняются локально в браузере
-- 🔍 **Поиск по записям**: Быстро находите нужные записи
-- 🌙 **Тёмная тема**: Комфортная работа в любое время суток
-
-## 🚀 Быстрый старт
-
-### Требования
-
-- Node.js (версии 16 или выше)
-- npm или yarn
-
-### Установка
-
-1. Клонируйте репозиторий:
-```bash
-git clone https://github.com/Eobart96/my-space-diary.git
-cd my-space-diary
-```
-
-2. Установите зависимости:
-```bash
-npm install
-```
-
-3. Запустите приложение:
-```bash
-npm run dev
-```
-
-4. Откройте браузер и перейдите по адресу `http://localhost:5173`
-
-## 📱 Сборка и развертывание
-
-### Создание production-сборки
+## Quick Start
 
 ```bash
-npm run build
+# Clone and run
+docker-compose up -d
 ```
 
-### Предпросмотр сборки
+Access at http://localhost:3000
+
+## Project Structure
+
+```
+├── backend/          # Node.js API server
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   ├── middleware/
+│   │   └── models/
+│   └── package.json
+├── frontend/         # React application
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── hooks/
+│   │   ├── contexts/
+│   │   └── types/
+│   └── package.json
+├── docker-compose.yml
+├── DATABASE_SCHEMA.md
+├── DEPLOYMENT.md
+└── README.md
+```
+
+## Features
+
+### 📔 **Diary Module**
+- CRUD diary entries with mood tracking (1-5 scale)
+- Time-based entries with search and filtering
+- Responsive diary interface with mood visualization
+- LocalStorage persistence for offline functionality
+
+### 🥗 **Nutrition Module**
+- Track meals with calories and macronutrients (proteins, fats, carbs)
+- Daily nutrition summary with visual indicators
+- Time-based meal tracking with search functionality
+- **NEW**: Product management system
+
+### 🏷️ **Product Management System**
+- Add and manage food products
+- Product assessment: Positive, Neutral, or Negative
+- Add detailed notes for each product
+- Visual indicators with color-coded assessment badges
+- Persistent storage in localStorage
+
+### 🌐 **Internationalization**
+- Multi-language support (English/Russian)
+- Dynamic language switching
+- Localized UI elements and content
+
+### 🎨 **User Interface**
+- Modern glassmorphism design with gradient backgrounds
+- Responsive layout for desktop and mobile devices
+- Smooth animations and transitions
+- Intuitive navigation with App Launcher
+
+### 🔐 **Authentication**
+- Simple email/password login with JWT tokens
+- Secure session management
+- User-specific data isolation
+
+## Database Schema
+
+- **users**: id, email, password_hash, created_at
+- **diary_entries**: id, user_id, date, time, text, mood, timestamps
+- **nutrition_entries**: id, user_id, date, time, title, calories, proteins, fats, carbs, timestamps
+
+See `DATABASE_SCHEMA.md` for detailed schema information.
+
+## API Endpoints
+
+- **Auth**: POST /api/auth/register, POST /api/auth/login
+- **Diary**: GET/POST/PUT/DELETE /api/diary
+- **Nutrition**: GET/POST/PUT/DELETE /api/nutrition, GET /api/nutrition/summary
+
+## Development
 
 ```bash
-npm run preview
+# Frontend development
+cd frontend && npm run dev
+
+# Backend development  
+cd backend && npm run dev
+
+# Full stack with Docker
+docker-compose up -d
 ```
 
-## 🛠️ Технологии
+## Deployment
 
-- **Frontend**: React 18
-- **Стили**: Tailwind CSS
-- **Сборщик**: Vite
-- **Иконки**: Встроенные SVG иконки
-- **Хранение**: LocalStorage браузера
+See `DEPLOYMENT.md` for Linux VPS deployment instructions.
 
-## 📁 Структура проекта
+## Recent Updates
 
-```
-my-space-diary/
-├── src/                    # Исходный код
-│   ├── components/         # React компоненты
-│   ├── styles/            # CSS файлы
-│   └── utils/             # Вспомогательные функции
-├── public/                # Статические файлы
-├── dist/                  # Сборка проекта (создается автоматически)
-├── package.json           # Зависимости проекта
-└── README.md             # Этот файл
-```
-
-## 🔧 Настройка
-
-Приложение готово к использованию сразу после установки. Все настройки хранятся в браузере пользователя.
-
-## 📖 Использование
-
-1. **Создание записи**: Нажмите кнопку "Новая запись" и введите текст
-2. **Редактирование**: Нажмите на существующую запись для редактирования
-3. **Поиск**: Используйте поле поиска для быстрого нахождения записей
-4. **Удаление**: Удалите ненужные записи кнопкой удаления
-
-## 🔒 Безопасность
-
-- Все данные хранятся локально в браузере
-- Никакие данные не передаются на внешние сервера
-- Полная конфиденциальность ваших записей
-
-## 🤝 Contributing
-
-Если вы хотите внести вклад в проект:
-
-1. Fork репозитория
-2. Создайте ветку для вашей функции (`git checkout -b feature/AmazingFeature`)
-3. Commit ваши изменения (`git commit -m 'Add some AmazingFeature'`)
-4. Push в ветку (`git push origin feature/AmazingFeature`)
-5. Откройте Pull Request
-
-## 📄 Лицензия
-
-Этот проект распространяется под лицензией MIT. Подробности в файле LICENSE.
-
-## 🆘 Поддержка
-
-Если у вас возникли вопросы или проблемы:
-
-1. Проверьте раздел [Issues](https://github.com/Eobart96/my-space-diary/issues)
-2. Создайте новый Issue с описанием проблемы
-3. Укажите версию браузера и ОС
-
----
-
-**Создано с ❤️ для ежедневных записей** 
+### v1.0 - Product Management System
+- ✅ Added comprehensive product management to Nutrition module
+- ✅ Implemented localStorage persistence for products
+- ✅ Added product assessment system (Positive/Neutral/Negative)
+- ✅ Enhanced UI with color-coded product indicators
+- ✅ Improved internationalization support
+- ✅ Fixed responsive design issues
+- ✅ Optimized performance and user experience

@@ -1,0 +1,121 @@
+import { Request, Response } from 'express';
+import { Pool } from 'pg';
+import { NutritionEntry, CreateNutritionRequest, DailyNutritionSummary } from '../models/Nutrition';
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+});
+
+export const getEntries = async (req: Request, res: Response) => {
+    try {
+        const { date } = req.query;
+        let query = 'SELECT * FROM nutrition_entries ORDER BY date DESC, time DESC, created_at DESC';
+        let params: any[] = [];
+
+        if (date) {
+            query = 'SELECT * FROM nutrition_entries WHERE date = $1 ORDER BY time DESC, created_at DESC';
+            params = [date];
+        }
+
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching nutrition entries:', error);
+        res.status(500).json({ error: 'Failed to fetch nutrition entries' });
+    }
+};
+
+export const getDailySummary = async (req: Request, res: Response) => {
+    try {
+        const { date } = req.query;
+
+        if (!date) {
+            return res.status(400).json({ error: 'Date parameter is required' });
+        }
+
+        // Get all entries for the specified date
+        const entriesResult = await pool.query(
+            'SELECT * FROM nutrition_entries WHERE date = $1 ORDER BY time DESC',
+            [date]
+        );
+
+        const entries = entriesResult.rows;
+
+        // Calculate daily totals
+        const totalCalories = entries.reduce((sum, entry) => sum + (entry.calories || 0), 0);
+        const totalProteins = entries.reduce((sum, entry) => sum + (entry.proteins || 0), 0);
+        const totalFats = entries.reduce((sum, entry) => sum + (entry.fats || 0), 0);
+        const totalCarbs = entries.reduce((sum, entry) => sum + (entry.carbs || 0), 0);
+
+        const summary: DailyNutritionSummary = {
+            date: date as string,
+            totalCalories,
+            totalProteins,
+            totalFats,
+            totalCarbs,
+            entries,
+        };
+
+        res.json(summary);
+    } catch (error) {
+        console.error('Error fetching daily nutrition summary:', error);
+        res.status(500).json({ error: 'Failed to fetch daily nutrition summary' });
+    }
+};
+
+export const createEntry = async (req: Request, res: Response) => {
+    try {
+        const { date, time, title, calories, proteins, fats, carbs }: CreateNutritionRequest = req.body;
+
+        const result = await pool.query(
+            'INSERT INTO nutrition_entries (date, time, title, calories, proteins, fats, carbs) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [date, time, title, calories || null, proteins || null, fats || null, carbs || null]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error creating nutrition entry:', error);
+        res.status(500).json({ error: 'Failed to create nutrition entry' });
+    }
+};
+
+export const updateEntry = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { title, calories, proteins, fats, carbs } = req.body;
+
+        const result = await pool.query(
+            'UPDATE nutrition_entries SET title = COALESCE($1, title), calories = COALESCE($2, calories), proteins = COALESCE($3, proteins), fats = COALESCE($4, fats), carbs = COALESCE($5, carbs), updated_at = CURRENT_TIMESTAMP WHERE id = $6 RETURNING *',
+            [title, calories || null, proteins || null, fats || null, carbs || null, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Nutrition entry not found' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error updating nutrition entry:', error);
+        res.status(500).json({ error: 'Failed to update nutrition entry' });
+    }
+};
+
+export const deleteEntry = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            'DELETE FROM nutrition_entries WHERE id = $1 RETURNING *',
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Nutrition entry not found' });
+        }
+
+        res.json({ message: 'Nutrition entry deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting nutrition entry:', error);
+        res.status(500).json({ error: 'Failed to delete nutrition entry' });
+    }
+};
