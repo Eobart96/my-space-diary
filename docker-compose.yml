@@ -16,6 +16,8 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - app-network
 
   backend:
     build:
@@ -30,6 +32,8 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - app-network
 
   frontend:
     build:
@@ -38,6 +42,8 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    networks:
+      - app-network
 
   nginx:
     image: nginx:alpine
@@ -49,7 +55,13 @@ services:
       - frontend
       - backend
     restart: unless-stopped
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
     driver: local
+
+networks:
+  app-network:
+    driver: bridge
