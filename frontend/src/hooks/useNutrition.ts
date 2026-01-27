@@ -1,115 +1,107 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NutritionEntry, CreateNutritionRequest, DailyNutritionSummary } from '../types';
-
-interface NutritionData {
-    entries: NutritionEntry[];
-}
-
-const storage = {
-    get: (key: string) => {
-        try {
-            if (typeof window !== 'undefined') {
-                const item = window.localStorage.getItem(key);
-                return item ? JSON.parse(item) : null;
-            }
-            return null;
-        } catch (error) {
-            console.error(`Error getting localStorage key "${key}":`, error);
-            return null;
-        }
-    },
-
-    set: (key: string, value: any) => {
-        try {
-            if (typeof window !== 'undefined') {
-                window.localStorage.setItem(key, JSON.stringify(value));
-                return true;
-            }
-            return false;
-        } catch (error) {
-            console.error(`Error setting localStorage key "${key}":`, error);
-            return false;
-        }
-    }
-};
+import { nutritionAPI } from '../lib/api';
 
 export const useNutrition = () => {
-    const getData = (): NutritionData => {
-        const data = storage.get('nutrition-data');
-        return data || { entries: [] };
+    const [entries, setEntries] = useState<NutritionEntry[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const normalizeDate = (value?: string) => {
+        if (!value) return '';
+        return value.split('T')[0];
     };
 
-    const setData = (data: NutritionData) => {
-        storage.set('nutrition-data', data);
-    };
-
-    const addEntry = useCallback((entry: CreateNutritionRequest) => {
-        const data = getData();
-        const newEntry: NutritionEntry = {
-            id: Date.now(),
-            user_id: 1, // Temporary for local storage
-            ...entry,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        };
-
-        const updatedData = {
-            ...data,
-            entries: [...data.entries, newEntry]
-        };
-
-        setData(updatedData);
+    const loadEntries = useCallback(async (date?: string) => {
+        try {
+            setLoading(true);
+            setError(null);
+            const data = await nutritionAPI.getEntries(date);
+            setEntries(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load nutrition entries');
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    const updateEntry = useCallback((id: number, updates: Partial<NutritionEntry>) => {
-        const data = getData();
-        const updatedData = {
-            ...data,
-            entries: data.entries.map((entry: any) =>
-                entry.id === id
-                    ? { ...entry, ...updates, updated_at: new Date().toISOString() }
-                    : entry
-            )
-        };
+    useEffect(() => {
+        loadEntries();
+    }, [loadEntries]);
 
-        setData(updatedData);
+    const addEntry = useCallback(async (entry: CreateNutritionRequest) => {
+        try {
+            setLoading(true);
+            setError(null);
+            const newEntry = await nutritionAPI.createEntry(entry);
+            setEntries(prev => [...prev, newEntry]);
+            return newEntry;
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to add nutrition entry';
+            setError(errorMessage);
+            throw new Error(errorMessage);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    const deleteEntry = useCallback((id: number) => {
-        const data = getData();
-        const updatedData = {
-            ...data,
-            entries: data.entries.filter((entry: any) => entry.id !== id)
-        };
+    const updateEntry = useCallback(async (id: number, updates: Partial<NutritionEntry>) => {
+        try {
+            setLoading(true);
+            setError(null);
+            const updatedEntry = await nutritionAPI.updateEntry(id, updates);
+            setEntries(prev =>
+                prev.map(entry =>
+                    entry.id === id ? updatedEntry : entry
+                )
+            );
+            return updatedEntry;
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to update nutrition entry';
+            setError(errorMessage);
+            throw new Error(errorMessage);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
-        setData(updatedData);
+    const deleteEntry = useCallback(async (id: number) => {
+        try {
+            setLoading(true);
+            setError(null);
+            await nutritionAPI.deleteEntry(id);
+            setEntries(prev => prev.filter(entry => entry.id !== id));
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to delete nutrition entry';
+            setError(errorMessage);
+            throw new Error(errorMessage);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     const getEntries = useCallback((date?: string) => {
-        const data = getData();
-        let filtered = data.entries;
-
+        let filtered = entries;
         if (date) {
-            filtered = filtered.filter((entry: any) => entry.date === date);
+            const d = normalizeDate(date);
+            filtered = filtered.filter((entry) => normalizeDate(entry.date) === d);
         }
 
         // Sort by date and time
-        filtered.sort((a: any, b: any) => {
-            const dateCompare = b.date.localeCompare(a.date);
+        return [...filtered].sort((a, b) => {
+            const dateCompare = normalizeDate(b.date).localeCompare(normalizeDate(a.date));
             if (dateCompare !== 0) return dateCompare;
             return b.time.localeCompare(a.time);
         });
-
-        return filtered;
-    }, []);
+    }, [entries]);
 
     const getDailySummary = useCallback((date: string): DailyNutritionSummary => {
         const dayEntries = getEntries(date);
 
-        const totalCalories = dayEntries.reduce((sum: number, entry: any) => sum + (entry.calories || 0), 0);
-        const totalProteins = dayEntries.reduce((sum: number, entry: any) => sum + (entry.proteins || 0), 0);
-        const totalFats = dayEntries.reduce((sum: number, entry: any) => sum + (entry.fats || 0), 0);
-        const totalCarbs = dayEntries.reduce((sum: number, entry: any) => sum + (entry.carbs || 0), 0);
+        const totalCalories = dayEntries.reduce((sum, entry) => sum + (entry.calories || 0), 0);
+        const totalProteins = dayEntries.reduce((sum, entry) => sum + (entry.proteins || 0), 0);
+        const totalFats = dayEntries.reduce((sum, entry) => sum + (entry.fats || 0), 0);
+        const totalCarbs = dayEntries.reduce((sum, entry) => sum + (entry.carbs || 0), 0);
 
         return {
             date,
@@ -119,14 +111,35 @@ export const useNutrition = () => {
             totalCarbs,
             entries: dayEntries
         };
+    }, [getEntries]);
+
+    const getDailySummaryFromAPI = useCallback(async (date: string): Promise<DailyNutritionSummary> => {
+        try {
+            setLoading(true);
+            setError(null);
+            return await nutritionAPI.getDailySummary(date);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to get daily summary';
+            setError(errorMessage);
+            throw new Error(errorMessage);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    return {
-        entries: getData().entries,
-        addEntry,
-        updateEntry,
-        deleteEntry,
-        getEntries,
-        getDailySummary
-    };
+    return useMemo(
+        () => ({
+            entries,
+            loading,
+            error,
+            addEntry,
+            updateEntry,
+            deleteEntry,
+            getEntries,
+            getDailySummary,
+            getDailySummaryFromAPI,
+            refreshEntries: loadEntries
+        }),
+        [entries, loading, error, addEntry, updateEntry, deleteEntry, getEntries, getDailySummary, getDailySummaryFromAPI, loadEntries]
+    );
 };

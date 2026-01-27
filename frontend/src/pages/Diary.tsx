@@ -6,7 +6,6 @@ import { DiaryEntry, CreateDiaryRequest } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useDiary } from '../hooks/useDiary';
-import { getCurrentTime, getTimeOfDayLabel, getTimeOfDayIcon } from '../utils/timeUtils';
 
 const moodEmojis = {
     1: '😢',
@@ -27,7 +26,8 @@ const moodColors = {
 const Diary: React.FC = () => {
     const { t, language } = useLanguage();
     const { settings, updateSettings } = useSettings();
-    const { entries, addEntry, updateEntry, deleteEntry, getEntries } = useDiary();
+
+    const { entries, loading, error, addEntry, updateEntry, deleteEntry, getEntries, refreshEntries } = useDiary();
     const [isCreating, setIsCreating] = useState(false);
     const [editingEntry, setEditingEntry] = useState<DiaryEntry | null>(null);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -35,6 +35,10 @@ const Diary: React.FC = () => {
     const [showSettings, setShowSettings] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [selectedMood, setSelectedMood] = useState<number>(3);
+
+    useEffect(() => {
+        refreshEntries(selectedDate);
+    }, [selectedDate, refreshEntries]);
 
     const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CreateDiaryRequest>({
         defaultValues: {
@@ -46,40 +50,30 @@ const Diary: React.FC = () => {
     });
 
     const filteredEntries = useMemo(() => {
-        const entriesForDate = getEntries?.(selectedDate) || [];
+        const entriesForDate = getEntries(selectedDate);
+        if (!searchTerm) return entriesForDate;
+        const q = searchTerm.toLowerCase();
         return entriesForDate.filter((entry: DiaryEntry) =>
-            entry.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            entry.text.toLowerCase().includes(q) ||
             entry.date.includes(searchTerm)
         );
     }, [getEntries, selectedDate, searchTerm]);
 
-    // Debug log to track entries
-    useEffect(() => {
-        console.log('Current entries:', entries);
-        console.log('Filtered entries:', filteredEntries);
-    }, [entries, filteredEntries]);
+    const getTimeDisplay = (time: string) => {
+        return time || '12:00';
+    };
 
-    useEffect(() => {
-        if (isCreating && !editingEntry) {
-            reset({
-                date: selectedDate,
-                time: getCurrentTime(settings.timeFormat)
-            });
-        }
-    }, [isCreating, selectedDate, settings.timeFormat, reset, editingEntry]);
+    const getTimeIcon = () => {
+        return '🕐';
+    };
 
-    const onSubmit = (data: CreateDiaryRequest) => {
-        console.log('Submitting diary entry:', data);
-
+    const onSubmit = async (data: CreateDiaryRequest) => {
         if (editingEntry) {
-            console.log('Updating entry:', editingEntry.id);
-            updateEntry(editingEntry.id, data);
+            await updateEntry(editingEntry.id, data);
         } else {
-            console.log('Adding new entry');
-            addEntry(data);
+            await addEntry(data);
         }
-
-        console.log('Current entries after operation:', entries);
+        await refreshEntries(selectedDate);
         reset();
         setIsCreating(false);
         setEditingEntry(null);
@@ -88,32 +82,18 @@ const Diary: React.FC = () => {
     const handleEdit = (entry: DiaryEntry) => {
         setEditingEntry(entry);
         reset({
-            date: entry.date,
-            time: entry.time,
+            date: entry.date?.split('T')[0] || new Date().toISOString().split('T')[0],
+            time: entry.time || new Date(entry.created_at).toTimeString().slice(0, 5),
             text: entry.text,
             mood: entry.mood || undefined
         });
     };
 
-    const handleDelete = (id: number) => {
+    const handleDelete = async (id: number) => {
         if (window.confirm(language === 'en' ? 'Are you sure?' : 'Вы уверены?')) {
-            console.log('Deleting entry:', id);
-            deleteEntry(id);
+            await deleteEntry(id);
+            await refreshEntries(selectedDate);
         }
-    };
-
-    const getTimeDisplay = (time: string) => {
-        if (settings.timeFormat === 'exact') {
-            return time;
-        }
-        return getTimeOfDayLabel(time, language);
-    };
-
-    const getTimeIcon = (time: string) => {
-        if (settings.timeFormat === 'exact') {
-            return '🕐';
-        }
-        return getTimeOfDayIcon(time);
     };
 
     return (
@@ -407,6 +387,29 @@ const Diary: React.FC = () => {
                     </div>
                 )}
 
+                {/* Loading State */}
+                {loading && (
+                    <div className="text-center py-8">
+                        <div className="inline-flex items-center justify-center w-12 h-12 bg-white/10 rounded-full mb-4">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                        </div>
+                        <p className="text-white/60">{language === 'en' ? 'Loading...' : 'Загрузка...'}</p>
+                    </div>
+                )}
+
+                {/* Error State */}
+                {error && (
+                    <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
+                        <p className="text-red-200">{error}</p>
+                        <button
+                            onClick={() => refreshEntries(selectedDate)}
+                            className="mt-2 text-red-200 hover:text-white underline"
+                        >
+                            {language === 'en' ? 'Try again' : 'Попробовать снова'}
+                        </button>
+                    </div>
+                )}
+
                 {/* Entries */}
                 <div className="space-y-6">
                     {filteredEntries.length === 0 ? (
@@ -436,10 +439,10 @@ const Diary: React.FC = () => {
                                     <div className="flex items-start justify-between mb-4">
                                         <div className="flex-1">
                                             <div className="flex items-center space-x-4 mb-3">
-                                                <span className="text-white/60">{entry.date}</span>
+                                                <span className="text-white/60">{entry.date?.split('T')[0]}</span>
                                                 <div className="flex items-center text-white/60">
-                                                    <span className="mr-2">{getTimeIcon?.(entry.time) || '🕐'}</span>
-                                                    <span>{getTimeDisplay?.(entry.time) || entry.time}</span>
+                                                    <span className="mr-2">{getTimeIcon() || '🕐'}</span>
+                                                    <span>{getTimeDisplay?.(entry.time) || new Date(entry.created_at).toTimeString().slice(0, 5)}</span>
                                                 </div>
                                                 {emoji && (
                                                     <div className={`inline-flex items-center justify-center w-8 h-8 bg-gradient-to-r ${(moodColors as any)[entry.mood!]} rounded-full`}>

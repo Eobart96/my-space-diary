@@ -9,7 +9,7 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: false
 });
 
 async function migrate() {
@@ -44,12 +44,18 @@ async function migrate() {
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         date DATE NOT NULL,
+        time TEXT NOT NULL,
         text TEXT NOT NULL,
         mood INTEGER CHECK (mood >= 1 AND mood <= 5),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Backward-compatible schema upgrades
+    await client.query(`ALTER TABLE diary_entries ADD COLUMN IF NOT EXISTS time TEXT`);
+    await client.query(`UPDATE diary_entries SET time = COALESCE(time, to_char(created_at, 'HH24:MI'))`);
+    await client.query(`ALTER TABLE diary_entries ALTER COLUMN time SET NOT NULL`);
 
     // Nutrition entries table
     await client.query(`
@@ -68,10 +74,24 @@ async function migrate() {
       )
     `);
 
+    // Nutrition products table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS nutrition_products (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        assessment TEXT NOT NULL CHECK (assessment IN ('positive', 'negative', 'neutral')),
+        notes TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Indexes
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_diary_entries_user_date ON diary_entries(user_id, date);
       CREATE INDEX IF NOT EXISTS idx_nutrition_entries_user_date ON nutrition_entries(user_id, date);
+      CREATE INDEX IF NOT EXISTS idx_nutrition_products_user_name ON nutrition_products(user_id, name);
     `);
 
     await client.query('COMMIT');

@@ -1,67 +1,73 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Plus, Edit2, Trash2, Utensils, Flame, ArrowLeft, TrendingUp, Clock, Search, Package, Tag, AlertCircle, CheckCircle } from 'lucide-react';
-import { NutritionEntry, CreateNutritionRequest } from '../types';
+import { NutritionEntry, CreateNutritionRequest, NutritionProduct, CreateNutritionProductRequest } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNutrition } from '../hooks/useNutrition';
-
-interface Product {
-    id: number;
-    name: string;
-    assessment: 'positive' | 'negative' | 'neutral';
-    notes: string;
-    created_at: string;
-}
+import { nutritionAPI } from '../lib/api';
 
 const Nutrition: React.FC = () => {
     const { t, language } = useLanguage();
-    const { addEntry, updateEntry, deleteEntry, getEntries, getDailySummary } = useNutrition();
+    const { addEntry, updateEntry, deleteEntry, getEntries, getDailySummary, loading, error, refreshEntries } = useNutrition();
     const [isCreating, setIsCreating] = useState(false);
     const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+    const [editingProduct, setEditingProduct] = useState<NutritionProduct | null>(null);
     const [editingEntry, setEditingEntry] = useState<NutritionEntry | null>(null);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [products, setProducts] = useState<Product[]>(() => {
-        try {
-            const saved = localStorage.getItem('nutrition-products');
-            return saved ? (JSON.parse(saved) as Product[]) : [];
-        } catch {
-            return [];
-        }
-    });
+    const [products, setProducts] = useState<NutritionProduct[]>([]);
+    const [productsLoading, setProductsLoading] = useState(false);
+    const [productsError, setProductsError] = useState<string | null>(null);
 
     // Product form states
     const [productName, setProductName] = useState('');
     const [productAssessment, setProductAssessment] = useState<'positive' | 'negative' | 'neutral'>('neutral');
     const [productNotes, setProductNotes] = useState('');
 
-    // Save products to localStorage
+    // Загружаем данные при изменении выбранной даты
     useEffect(() => {
+        refreshEntries(selectedDate);
+    }, [selectedDate, refreshEntries]);
+
+    const loadProducts = async () => {
         try {
-            localStorage.setItem('nutrition-products', JSON.stringify(products));
-        } catch (error) {
-            console.error('Error saving products:', error);
+            setProductsLoading(true);
+            setProductsError(null);
+            const data = await nutritionAPI.getProducts();
+            setProducts(data);
+        } catch (e) {
+            setProductsError(e instanceof Error ? e.message : 'Failed to load products');
+        } finally {
+            setProductsLoading(false);
         }
-    }, [products]);
-
-    const addProduct = (productData: Omit<Product, 'id' | 'created_at'>) => {
-        const newProduct: Product = {
-            ...productData,
-            id: Date.now(),
-            created_at: new Date().toISOString()
-        };
-
-        setProducts(prev => [...prev, newProduct]);
     };
 
-    const deleteProduct = (id: number) => {
+    useEffect(() => {
+        loadProducts();
+    }, []);
+
+    const addProduct = async (productData: CreateNutritionProductRequest) => {
+        const created = await nutritionAPI.createProduct(productData);
+        setProducts((prev) => [...prev, created]);
+    };
+
+    const updateProduct = async (id: number, productData: CreateNutritionProductRequest) => {
+        const updated = await nutritionAPI.updateProduct(id, productData);
+        setProducts((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    };
+
+    const deleteProduct = async (id: number) => {
+        await nutritionAPI.deleteProduct(id);
         setProducts(prev => prev.filter(p => p.id !== id));
     };
 
-    const filteredEntries = getEntries(selectedDate).filter(entry =>
-        entry.title.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredEntries = useMemo(() => {
+        const base = getEntries(selectedDate);
+        if (!searchTerm) return base;
+        const q = searchTerm.toLowerCase();
+        return base.filter(entry => entry.title.toLowerCase().includes(q));
+    }, [getEntries, selectedDate, searchTerm]);
     const summary = getDailySummary(selectedDate);
 
     const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateNutritionRequest>();
@@ -75,16 +81,23 @@ const Nutrition: React.FC = () => {
         }
     }, [isCreating, selectedDate, reset, editingEntry]);
 
-    const onSubmit = (data: CreateNutritionRequest) => {
+    const onSubmit = async (data: CreateNutritionRequest) => {
         const submitData = { ...data, date: selectedDate };
-        if (editingEntry) {
-            updateEntry(editingEntry.id, submitData);
-        } else {
-            addEntry(submitData);
+
+        try {
+            if (editingEntry) {
+                await updateEntry(editingEntry.id, submitData);
+            } else {
+                await addEntry(submitData);
+            }
+
+            await refreshEntries(selectedDate);
+            reset();
+            setIsCreating(false);
+            setEditingEntry(null);
+        } catch (error) {
+            console.error('Error saving nutrition entry:', error);
         }
-        reset();
-        setIsCreating(false);
-        setEditingEntry(null);
     };
 
     const handleEdit = (entry: NutritionEntry) => {
@@ -100,9 +113,14 @@ const Nutrition: React.FC = () => {
         });
     };
 
-    const handleDelete = (id: number) => {
+    const handleDelete = async (id: number) => {
         if (window.confirm(language === 'en' ? 'Are you sure?' : 'Вы уверены?')) {
-            deleteEntry(id);
+            try {
+                await deleteEntry(id);
+                await refreshEntries(selectedDate);
+            } catch (error) {
+                console.error('Error deleting nutrition entry:', error);
+            }
         }
     };
 
@@ -198,11 +216,31 @@ const Nutrition: React.FC = () => {
                         </button>
                     </div>
 
+                    {productsLoading && (
+                        <div className="text-white/60 text-sm mb-4">
+                            {language === 'en' ? 'Loading products...' : 'Загрузка продуктов...'}
+                        </div>
+                    )}
+
+                    {productsError && (
+                        <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-4">
+                            <p className="text-red-200 text-sm">{productsError}</p>
+                            <button
+                                onClick={loadProducts}
+                                className="mt-2 text-red-200 hover:text-white underline text-sm"
+                            >
+                                {language === 'en' ? 'Try again' : 'Попробовать снова'}
+                            </button>
+                        </div>
+                    )}
+
                     {/* Add Product Form */}
-                    {isCreatingProduct && (
+                    {(isCreatingProduct || editingProduct) && (
                         <div className="bg-white/5 rounded-lg p-4 mb-6 space-y-4">
                             <h3 className="text-lg font-semibold text-white mb-4">
-                                {language === 'en' ? 'Add New Product' : 'Добавить новый продукт'}
+                                {editingProduct
+                                    ? (language === 'en' ? 'Edit Product' : 'Редактировать продукт')
+                                    : (language === 'en' ? 'Add New Product' : 'Добавить новый продукт')}
                             </h3>
 
                             <div>
@@ -274,23 +312,32 @@ const Nutrition: React.FC = () => {
 
                             <div className="flex space-x-3">
                                 <button
-                                    onClick={() => {
+                                    onClick={async () => {
                                         if (productName.trim()) {
-                                            addProduct({
+                                            const payload = {
                                                 name: productName.trim(),
                                                 assessment: productAssessment,
                                                 notes: productNotes
-                                            });
+                                            };
+
+                                            if (editingProduct) {
+                                                await updateProduct(editingProduct.id, payload);
+                                            } else {
+                                                await addProduct(payload);
+                                            }
 
                                             setProductName('');
                                             setProductAssessment('neutral');
                                             setProductNotes('');
                                             setIsCreatingProduct(false);
+                                            setEditingProduct(null);
                                         }
                                     }}
                                     className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 transition-colors"
                                 >
-                                    {language === 'en' ? 'Add Product' : 'Добавить продукт'}
+                                    {editingProduct
+                                        ? (language === 'en' ? 'Save' : 'Сохранить')
+                                        : (language === 'en' ? 'Add Product' : 'Добавить продукт')}
                                 </button>
                                 <button
                                     onClick={() => {
@@ -298,6 +345,7 @@ const Nutrition: React.FC = () => {
                                         setProductAssessment('neutral');
                                         setProductNotes('');
                                         setIsCreatingProduct(false);
+                                        setEditingProduct(null);
                                     }}
                                     className="bg-white/10 text-white px-6 py-3 rounded-lg hover:bg-white/20 transition-colors"
                                 >
@@ -349,12 +397,26 @@ const Nutrition: React.FC = () => {
                                             <p className="text-white/60 text-sm">{product.notes}</p>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => deleteProduct(product.id)}
-                                        className="text-red-400 hover:text-red-300 transition-colors"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center space-x-2">
+                                        <button
+                                            onClick={() => {
+                                                setEditingProduct(product);
+                                                setIsCreatingProduct(false);
+                                                setProductName(product.name);
+                                                setProductAssessment(product.assessment);
+                                                setProductNotes(product.notes || '');
+                                            }}
+                                            className="text-white/70 hover:text-white transition-colors"
+                                        >
+                                            <Edit2 className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => deleteProduct(product.id)}
+                                            className="text-red-400 hover:text-red-300 transition-colors"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}
@@ -455,6 +517,29 @@ const Nutrition: React.FC = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                )}
+
+                {/* Loading State */}
+                {loading && (
+                    <div className="text-center py-8">
+                        <div className="inline-flex items-center justify-center w-12 h-12 bg-white/10 rounded-full mb-4">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                        </div>
+                        <p className="text-white/60">{language === 'en' ? 'Loading...' : 'Загрузка...'}</p>
+                    </div>
+                )}
+
+                {/* Error State */}
+                {error && (
+                    <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
+                        <p className="text-red-200">{error}</p>
+                        <button
+                            onClick={() => refreshEntries()}
+                            className="mt-2 text-red-200 hover:text-white underline"
+                        >
+                            {language === 'en' ? 'Try again' : 'Попробовать снова'}
+                        </button>
                     </div>
                 )}
 

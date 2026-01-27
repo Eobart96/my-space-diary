@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { DiaryEntry, CreateDiaryRequest, NutritionEntry, CreateNutritionRequest, DailyNutritionSummary } from '../types';
+import { DiaryEntry, CreateDiaryRequest, NutritionEntry, CreateNutritionRequest, DailyNutritionSummary, NutritionProduct, CreateNutritionProductRequest, UpdateNutritionProductRequest } from '../types';
 
 const API_BASE_URL = '/api';
 
@@ -49,5 +49,21 @@ export const nutritionAPI = {
     },
     deleteEntry: async (id: number): Promise<void> => {
         await api.delete(`/nutrition/${id}`);
+    },
+
+    getProducts: async (): Promise<NutritionProduct[]> => {
+        const response = await api.get('/nutrition/products');
+        return response.data;
+    },
+    createProduct: async (product: CreateNutritionProductRequest): Promise<NutritionProduct> => {
+        const response = await api.post('/nutrition/products', product);
+        return response.data;
+    },
+    updateProduct: async (id: number, product: UpdateNutritionProductRequest): Promise<NutritionProduct> => {
+        const response = await api.put(`/nutrition/products/${id}`, product);
+        return response.data;
+    },
+    deleteProduct: async (id: number): Promise<void> => {
+        await api.delete(`/nutrition/products/${id}`);
     },
 };

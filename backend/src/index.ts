@@ -20,17 +20,19 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    ssl: false
 });
 
 // Middleware
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
-app.use(rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-}));
+if (process.env.NODE_ENV === 'production') {
+    app.use(rateLimit({
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 100, // limit each IP to 100 requests per windowMs
+    }));
+}
 
 // Make database pool available to routes
 app.use((req: any, res: any, next: any) => {

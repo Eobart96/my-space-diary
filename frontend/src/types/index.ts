@@ -48,3 +48,27 @@ export interface DailyNutritionSummary {
     totalCarbs: number;
     entries: NutritionEntry[];
 }
+
+export type NutritionProductAssessment = 'positive' | 'negative' | 'neutral';
+
+export interface NutritionProduct {
+    id: number;
+    user_id: number;
+    name: string;
+    assessment: NutritionProductAssessment;
+    notes: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CreateNutritionProductRequest {
+    name: string;
+    assessment: NutritionProductAssessment;
+    notes?: string;
+}
+
+export interface UpdateNutritionProductRequest {
+    name?: string;
+    assessment?: NutritionProductAssessment;
+    notes?: string;
+}

@@ -1,23 +1,47 @@
 import { Request, Response } from 'express';
 import { Pool } from 'pg';
-import { DiaryEntry, CreateDiaryRequest } from '../models/Diary';
+import { CreateDiaryRequest } from '../models/Diary';
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
+const getPool = (req: Request): Pool => (req as any).pool as Pool;
 
 export const getEntries = async (req: Request, res: Response) => {
     try {
         const { date } = req.query;
-        let query = 'SELECT * FROM diary_entries ORDER BY date DESC, created_at DESC';
+
+        let query = `
+            SELECT
+                id,
+                user_id,
+                to_char(date, 'YYYY-MM-DD') AS date,
+                time,
+                text,
+                mood,
+                created_at,
+                updated_at
+            FROM diary_entries
+            ORDER BY date DESC, time DESC, created_at DESC
+        `;
         let params: any[] = [];
 
         if (date) {
-            query = 'SELECT * FROM diary_entries WHERE date = $1 ORDER BY created_at DESC';
+            query = `
+                SELECT
+                    id,
+                    user_id,
+                    to_char(date, 'YYYY-MM-DD') AS date,
+                    time,
+                    text,
+                    mood,
+                    created_at,
+                    updated_at
+                FROM diary_entries
+                WHERE date = $1
+                ORDER BY time DESC, created_at DESC
+            `;
             params = [date];
         }
 
-        const result = await pool.query(query, params);
+        const result = await getPool(req).query(query, params);
         res.json(result.rows);
     } catch (error) {
         console.error('Error fetching diary entries:', error);
@@ -27,11 +51,23 @@ export const getEntries = async (req: Request, res: Response) => {
 
 export const createEntry = async (req: Request, res: Response) => {
     try {
-        const { date, text, mood }: CreateDiaryRequest = req.body;
+        const { date, time, text, mood }: CreateDiaryRequest = req.body;
 
-        const result = await pool.query(
-            'INSERT INTO diary_entries (date, text, mood) VALUES ($1, $2, $3) RETURNING *',
-            [date, text, mood || null]
+        const result = await getPool(req).query(
+            `
+                INSERT INTO diary_entries (date, time, text, mood)
+                VALUES ($1, $2, $3, $4)
+                RETURNING
+                    id,
+                    user_id,
+                    to_char(date, 'YYYY-MM-DD') AS date,
+                    time,
+                    text,
+                    mood,
+                    created_at,
+                    updated_at
+            `,
+            [date, time, text, mood ?? null]
         );
 
         res.status(201).json(result.rows[0]);
@@ -44,11 +80,29 @@ export const createEntry = async (req: Request, res: Response) => {
 export const updateEntry = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { text, mood } = req.body;
+        const { date, time, text, mood } = req.body;
 
-        const result = await pool.query(
-            'UPDATE diary_entries SET text = COALESCE($1, text), mood = COALESCE($2, mood), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-            [text, mood || null, id]
+        const result = await getPool(req).query(
+            `
+                UPDATE diary_entries
+                SET
+                    date = COALESCE($1, date),
+                    time = COALESCE($2, time),
+                    text = COALESCE($3, text),
+                    mood = COALESCE($4, mood),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $5
+                RETURNING
+                    id,
+                    user_id,
+                    to_char(date, 'YYYY-MM-DD') AS date,
+                    time,
+                    text,
+                    mood,
+                    created_at,
+                    updated_at
+            `,
+            [date ?? null, time ?? null, text ?? null, mood ?? null, id]
         );
 
         if (result.rows.length === 0) {
@@ -66,8 +120,20 @@ export const deleteEntry = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        const result = await pool.query(
-            'DELETE FROM diary_entries WHERE id = $1 RETURNING *',
+        const result = await getPool(req).query(
+            `
+                DELETE FROM diary_entries
+                WHERE id = $1
+                RETURNING
+                    id,
+                    user_id,
+                    to_char(date, 'YYYY-MM-DD') AS date,
+                    time,
+                    text,
+                    mood,
+                    created_at,
+                    updated_at
+            `,
             [id]
         );
 

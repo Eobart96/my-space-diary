@@ -1,6 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
-import { createEntry, getEntries, getDailySummary, updateEntry, deleteEntry } from '../controllers/nutritionController';
+import { createEntry, getEntries, getDailySummary, updateEntry, deleteEntry, getProducts, createProduct, updateProduct, deleteProduct } from '../controllers/nutritionController';
 import { validateRequest } from '../middleware/validation';
 
 const router = express.Router();
@@ -10,6 +10,30 @@ router.get('/', getEntries);
 
 // Get daily nutrition summary
 router.get('/summary', getDailySummary);
+
+// Products CRUD
+router.get('/products', getProducts);
+router.post(
+    '/products',
+    [
+        body('name').notEmpty().withMessage('Name is required'),
+        body('assessment').isIn(['positive', 'negative', 'neutral']).withMessage('Assessment must be positive|negative|neutral'),
+        body('notes').optional().isString(),
+    ],
+    validateRequest,
+    createProduct
+);
+router.put(
+    '/products/:id',
+    [
+        body('name').optional().notEmpty().withMessage('Name cannot be empty'),
+        body('assessment').optional().isIn(['positive', 'negative', 'neutral']).withMessage('Assessment must be positive|negative|neutral'),
+        body('notes').optional().isString(),
+    ],
+    validateRequest,
+    updateProduct
+);
+router.delete('/products/:id', deleteProduct);
 
 // Create nutrition entry
 router.post('/',

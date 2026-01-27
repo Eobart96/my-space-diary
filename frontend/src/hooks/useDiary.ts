@@ -1,94 +1,98 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CreateDiaryRequest, DiaryEntry } from '../types';
-
-const STORAGE_KEY = 'diary-data';
-
-const readEntries = (): DiaryEntry[] => {
-    try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-        if (parsed && Array.isArray(parsed.entries)) return parsed.entries;
-        return [];
-    } catch {
-        return [];
-    }
-};
-
-const writeEntries = (entries: DiaryEntry[]) => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-};
+import { diaryAPI } from '../lib/api';
 
 export const useDiary = () => {
-    const [entries, setEntries] = useState<DiaryEntry[]>(() => {
-        if (typeof window === 'undefined') return [];
-        return readEntries();
-    });
+    const [entries, setEntries] = useState<DiaryEntry[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const normalizeDate = (value?: string) => {
+        if (!value) return '';
+        return value.split('T')[0];
+    };
+
+    const loadEntries = useCallback(async (date?: string) => {
+        try {
+            setLoading(true);
+            setError(null);
+            const data = await diaryAPI.getEntries(date);
+            setEntries(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load diary entries');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        if (typeof window === 'undefined') return;
-        writeEntries(entries);
-    }, [entries]);
+        loadEntries();
+    }, [loadEntries]);
 
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const onStorage = (e: StorageEvent) => {
-            if (e.key !== STORAGE_KEY) return;
-            setEntries(readEntries());
-        };
-        window.addEventListener('storage', onStorage);
-        return () => window.removeEventListener('storage', onStorage);
+    const addEntry = useCallback(async (entry: CreateDiaryRequest) => {
+        try {
+            setLoading(true);
+            setError(null);
+            const newEntry = await diaryAPI.createEntry(entry);
+            setEntries(prev => [...prev, newEntry]);
+            return newEntry;
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to add diary entry';
+            setError(errorMessage);
+            throw new Error(errorMessage);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    const addEntry = useCallback((entry: CreateDiaryRequest) => {
-        const now = new Date().toISOString();
-        const newEntry: DiaryEntry = {
-            id: Date.now(),
-            user_id: 1,
-            ...entry,
-            created_at: now,
-            updated_at: now
-        };
-
-        setEntries((prev) => [...prev, newEntry]);
+    const updateEntry = useCallback(async (id: number, updates: Partial<DiaryEntry>) => {
+        try {
+            setLoading(true);
+            setError(null);
+            const updatedEntry = await diaryAPI.updateEntry(id, updates);
+            setEntries(prev =>
+                prev.map(entry =>
+                    entry.id === id ? updatedEntry : entry
+                )
+            );
+            return updatedEntry;
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to update diary entry';
+            setError(errorMessage);
+            throw new Error(errorMessage);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    const updateEntry = useCallback((id: number, updates: Partial<DiaryEntry>) => {
-        setEntries((prev) =>
-            prev.map((entry) =>
-                entry.id === id
-                    ? { ...entry, ...updates, updated_at: new Date().toISOString() }
-                    : entry
-            )
-        );
+    const deleteEntry = useCallback(async (id: number) => {
+        try {
+            setLoading(true);
+            setError(null);
+            await diaryAPI.deleteEntry(id);
+            setEntries(prev => prev.filter(entry => entry.id !== id));
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to delete diary entry';
+            setError(errorMessage);
+            throw new Error(errorMessage);
+        } finally {
+            setLoading(false);
+        }
     }, []);
-
-    const deleteEntry = useCallback((id: number) => {
-        console.log('useDiary deleteEntry called with id:', id);
-        setEntries((prev) => {
-            console.log('Previous entries:', prev);
-            const filtered = prev.filter((entry) => entry.id !== id);
-            console.log('After delete:', filtered);
-            return filtered;
-        });
-    }, []);
-
-    // Debug log for entries
-    useEffect(() => {
-        console.log('useDiary entries updated:', entries);
-    }, [entries]);
 
     const getEntries = useCallback(
         (date?: string) => {
             let filtered = entries;
             if (date) {
-                filtered = filtered.filter((entry) => entry.date === date);
+                const d = normalizeDate(date);
+                filtered = filtered.filter((entry) => normalizeDate(entry.date) === d);
             }
 
             return [...filtered].sort((a, b) => {
-                const dateCompare = b.date.localeCompare(a.date);
+                const dateCompare = normalizeDate(b.date).localeCompare(normalizeDate(a.date));
                 if (dateCompare !== 0) return dateCompare;
+                const timeCompare = (b.time || '').localeCompare(a.time || '');
+                if (timeCompare !== 0) return timeCompare;
                 return b.created_at.localeCompare(a.created_at);
             });
         },
@@ -98,11 +102,14 @@ export const useDiary = () => {
     return useMemo(
         () => ({
             entries,
+            loading,
+            error,
             addEntry,
             updateEntry,
             deleteEntry,
-            getEntries
+            getEntries,
+            refreshEntries: loadEntries
         }),
-        [entries, addEntry, updateEntry, deleteEntry, getEntries]
+        [entries, loading, error, addEntry, updateEntry, deleteEntry, getEntries]
     );
 };
