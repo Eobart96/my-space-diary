@@ -14,11 +14,67 @@ Production-ready web application with diary and nutrition tracking modules, now 
 ## Quick Start
 
 ```bash
-# Clone and run
-docker-compose up -d
+# Clone
+git clone <your-repo-url>
+cd myspace
+
+# Configure env
+cp .env.example .env
+
+# Run (production-like, works anywhere)
+docker-compose up -d --build
 ```
 
 Access at http://localhost:3000
+
+## Development (Hot Reload)
+
+```bash
+docker-compose -f docker-compose.dev.yml up -d --build
+```
+
+Development access:
+- Frontend: http://localhost:3001
+- Backend API: http://localhost:5000
+
+## System Requirements
+
+### Minimum Requirements
+- **CPU**: 2 cores
+- **RAM**: 4 GB
+- **Storage**: 10 GB free space
+- **OS**: Windows 10+, macOS 10.15+, Ubuntu 18.04+
+
+### Recommended Requirements
+- **CPU**: 4 cores
+- **RAM**: 8 GB
+- **Storage**: 20 GB free space
+- **OS**: Ubuntu 20.04+ (for production)
+
+### Resource Usage (Runtime)
+- **PostgreSQL**: ~200-500 MB RAM
+- **Backend**: ~100-300 MB RAM
+- **Frontend**: ~50-150 MB RAM
+- **Total**: ~350-950 MB RAM (typical usage)
+
+## Deployment Options
+
+### Development (Local)
+```bash
+docker-compose -f docker-compose.dev.yml up -d --build
+```
+
+### Production (Ubuntu Server)
+```bash
+# One-click deployment
+chmod +x deploy.sh
+./deploy.sh
+
+# Or manual deployment
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+See [DEPLOYMENT_UBUNTU.md](DEPLOYMENT_UBUNTU.md) for detailed deployment guide.
 
 ## Project Structure
 

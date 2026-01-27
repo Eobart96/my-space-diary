@@ -16,7 +16,7 @@ interface Product {
 
 const Nutrition: React.FC = () => {
     const { t, language } = useLanguage();
-    const { entries, addEntry, updateEntry, deleteEntry, getEntries, getDailySummary } = useNutrition();
+    const { addEntry, updateEntry, deleteEntry, getEntries, getDailySummary } = useNutrition();
     const [isCreating, setIsCreating] = useState(false);
     const [isCreatingProduct, setIsCreatingProduct] = useState(false);
     const [editingEntry, setEditingEntry] = useState<NutritionEntry | null>(null);
