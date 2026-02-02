@@ -27,6 +27,21 @@ docker-compose up -d --build
 
 Access at http://localhost:3000
 
+## Docker Deployment (Any Machine)
+
+1) Install **Docker** + **docker compose**.
+2) Copy `.env.example` to `.env` and set:
+   - `POSTGRES_PASSWORD`
+   - `JWT_SECRET`
+   - `PUBLIC_BASE_URL` (e.g. `http://localhost:3000` or your domain)
+3) Start:
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+Data persists in Docker volumes: `postgres_data`, `uploads_data`, `telegram_data`.
+
 ## Development (Hot Reload)
 
 ```bash
@@ -52,6 +67,21 @@ docker-compose up -d --build
 ```
 
 Доступ: http://localhost:3000
+
+## Docker-развёртывание (RU)
+
+1) Установите **Docker** + **docker compose**.
+2) Скопируйте `.env.example` в `.env` и задайте:
+   - `POSTGRES_PASSWORD`
+   - `JWT_SECRET`
+   - `PUBLIC_BASE_URL` (например, `http://localhost:3000` или ваш домен)
+3) Запуск:
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+Данные сохраняются в Docker томах: `postgres_data`, `uploads_data`, `telegram_data`.
 
 ## Разработка (RU)
 
@@ -108,6 +138,8 @@ chmod +x deploy.sh
 # Or manual deployment
 docker-compose -f docker-compose.prod.yml up -d --build
 ```
+
+Note: set `PUBLIC_BASE_URL` to your domain (e.g. `https://myspace.example`) to generate correct upload links behind nginx.
 
 See [DEPLOYMENT_UBUNTU.md](DEPLOYMENT_UBUNTU.md) for detailed deployment guide.
 

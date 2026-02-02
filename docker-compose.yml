@@ -27,11 +27,14 @@ services:
       DATABASE_URL: postgresql://myspace:${POSTGRES_PASSWORD:-myspace_password}@postgres:5432/myspace?sslmode=disable
       JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key_change_in_production}
       PORT: 5000
-      NODE_ENV: development
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5000}
+      NODE_ENV: ${NODE_ENV:-production}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+      - telegram_data:/app/data
     restart: unless-stopped
     networks:
       - app-network
@@ -78,6 +81,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  uploads_data:
     driver: local
   telegram_data:
     driver: local

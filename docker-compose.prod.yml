@@ -30,11 +30,14 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       PORT: 5000
       NODE_ENV: production
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5000}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+      - telegram_data:/app/data
     networks:
       - myspace_network
     healthcheck:
@@ -90,6 +93,7 @@ services:
 volumes:
   postgres_data:
   telegram_data:
+  uploads_data:
 
 
 networks:
