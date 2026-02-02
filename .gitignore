@@ -101,3 +101,7 @@ nginx/ssl/
 # Temporary files
 tmp/
 temp/
+
+# App runtime data
+backend/uploads/
+backend/data/

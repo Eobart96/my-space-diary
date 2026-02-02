@@ -5,6 +5,8 @@ export interface DiaryEntry {
     time: string;
     text: string;
     mood?: number;
+    photo_url?: string;
+    photo_urls?: string[];
     created_at: string;
     updated_at: string;
 }
@@ -14,6 +16,8 @@ export interface CreateDiaryRequest {
     time: string;
     text: string;
     mood?: number;
+    photo_url?: string;
+    photo_urls?: string[];
 }
 
 export interface NutritionEntry {
@@ -57,6 +61,10 @@ export interface NutritionProduct {
     name: string;
     assessment: NutritionProductAssessment;
     notes: string;
+    pros: string;
+    cons: string;
+    photo_url?: string;
+    photo_urls?: string[];
     created_at: string;
     updated_at: string;
 }
@@ -65,10 +73,18 @@ export interface CreateNutritionProductRequest {
     name: string;
     assessment: NutritionProductAssessment;
     notes?: string;
+    pros?: string;
+    cons?: string;
+    photo_url?: string;
+    photo_urls?: string[];
 }
 
 export interface UpdateNutritionProductRequest {
     name?: string;
     assessment?: NutritionProductAssessment;
     notes?: string;
+    pros?: string;
+    cons?: string;
+    photo_url?: string;
+    photo_urls?: string[];
 }

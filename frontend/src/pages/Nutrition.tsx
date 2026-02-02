@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Plus, Edit2, Trash2, Utensils, Flame, ArrowLeft, TrendingUp, Clock, Search, Package, Tag, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Utensils, Flame, ArrowLeft, TrendingUp, Clock, Search, Package, Tag, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { NutritionEntry, CreateNutritionRequest, NutritionProduct, CreateNutritionProductRequest } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNutrition } from '../hooks/useNutrition';
-import { nutritionAPI } from '../lib/api';
+import { nutritionAPI, uploadsAPI } from '../lib/api';
 
 const Nutrition: React.FC = () => {
     const { t, language } = useLanguage();
@@ -13,6 +13,7 @@ const Nutrition: React.FC = () => {
     const [isCreating, setIsCreating] = useState(false);
     const [isCreatingProduct, setIsCreatingProduct] = useState(false);
     const [editingProduct, setEditingProduct] = useState<NutritionProduct | null>(null);
+    const [showProducts, setShowProducts] = useState(true);
     const [editingEntry, setEditingEntry] = useState<NutritionEntry | null>(null);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -23,7 +24,19 @@ const Nutrition: React.FC = () => {
     // Product form states
     const [productName, setProductName] = useState('');
     const [productAssessment, setProductAssessment] = useState<'positive' | 'negative' | 'neutral'>('neutral');
-    const [productNotes, setProductNotes] = useState('');
+    const [productPros, setProductPros] = useState('');
+    const [productCons, setProductCons] = useState('');
+    const [productDescription, setProductDescription] = useState('');
+    const [productPhotoUrl, setProductPhotoUrl] = useState('');
+    const [productPhotoUploading, setProductPhotoUploading] = useState(false);
+    const rawApiBaseUrl = import.meta.env.VITE_API_URL as string | undefined;
+    const normalizedApiBaseUrl = rawApiBaseUrl ? rawApiBaseUrl.replace(/\/$/, '') : '';
+    const uploadsBaseUrl = normalizedApiBaseUrl
+        ? (normalizedApiBaseUrl.endsWith('/api') ? normalizedApiBaseUrl.slice(0, -4) : normalizedApiBaseUrl)
+        : '';
+    const apiBaseUrl = normalizedApiBaseUrl
+        ? (normalizedApiBaseUrl.endsWith('/api') ? normalizedApiBaseUrl : `${normalizedApiBaseUrl}/api`)
+        : '/api';
 
     // Загружаем данные при изменении выбранной даты
     useEffect(() => {
@@ -124,6 +137,43 @@ const Nutrition: React.FC = () => {
         }
     };
 
+    const handleProductPhotoUpload = async (file?: File) => {
+        if (!file) return;
+        try {
+            setProductPhotoUploading(true);
+            const result = await uploadsAPI.upload(file);
+            setProductPhotoUrl(result.url);
+        } catch (error) {
+            console.error('Product photo upload failed:', error);
+        } finally {
+            setProductPhotoUploading(false);
+        }
+    };
+
+    const normalizePhotoUrl = (url?: string | null) => {
+        if (!url) return null;
+        if (url.startsWith('http')) return url;
+        if (url.startsWith('/uploads')) {
+            return uploadsBaseUrl ? `${uploadsBaseUrl}${url}` : url;
+        }
+        if (url.startsWith('uploads/')) {
+            return uploadsBaseUrl ? `${uploadsBaseUrl}/${url}` : `/${url}`;
+        }
+        return `${apiBaseUrl}/telegram-files?file_id=${encodeURIComponent(url)}`;
+    };
+
+    const getProductPhotoUrls = (product: NutritionProduct) => {
+        const rawUrls = Array.isArray(product.photo_urls) && product.photo_urls.length
+            ? product.photo_urls
+            : product.photo_url
+                ? [product.photo_url]
+                : [];
+        return rawUrls
+            .map((url) => normalizePhotoUrl(url))
+            .filter((url): url is string => Boolean(url))
+            .slice(0, 3);
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-green-900 via-blue-900 to-indigo-900">
             <div className="max-w-4xl mx-auto p-6">
@@ -207,41 +257,55 @@ const Nutrition: React.FC = () => {
                             <Package className="w-6 h-6 mr-2" />
                             {language === 'en' ? 'Products' : 'Продукты'}
                         </h2>
-                        <button
-                            onClick={() => setIsCreatingProduct(true)}
-                            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center"
-                        >
-                            <Plus className="w-4 h-4 mr-2" />
-                            {language === 'en' ? 'Add Product' : 'Добавить продукт'}
-                        </button>
-                    </div>
-
-                    {productsLoading && (
-                        <div className="text-white/60 text-sm mb-4">
-                            {language === 'en' ? 'Loading products...' : 'Загрузка продуктов...'}
-                        </div>
-                    )}
-
-                    {productsError && (
-                        <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-4">
-                            <p className="text-red-200 text-sm">{productsError}</p>
+                        <div className="flex items-center space-x-2">
                             <button
-                                onClick={loadProducts}
-                                className="mt-2 text-red-200 hover:text-white underline text-sm"
+                                type="button"
+                                onClick={() => setShowProducts((prev) => !prev)}
+                                className="bg-white/10 text-white px-3 py-2 rounded-lg hover:bg-white/20 transition-colors flex items-center"
                             >
-                                {language === 'en' ? 'Try again' : 'Попробовать снова'}
+                                {showProducts ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setIsCreatingProduct(true);
+                                    setShowProducts(true);
+                                }}
+                                className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center"
+                            >
+                                <Plus className="w-4 h-4 mr-2" />
+                                {language === 'en' ? 'Add Product' : 'Добавить продукт'}
                             </button>
                         </div>
-                    )}
+                    </div>
 
-                    {/* Add Product Form */}
-                    {(isCreatingProduct || editingProduct) && (
-                        <div className="bg-white/5 rounded-lg p-4 mb-6 space-y-4">
-                            <h3 className="text-lg font-semibold text-white mb-4">
-                                {editingProduct
-                                    ? (language === 'en' ? 'Edit Product' : 'Редактировать продукт')
-                                    : (language === 'en' ? 'Add New Product' : 'Добавить новый продукт')}
-                            </h3>
+                    {showProducts && (
+                        <>
+                            {productsLoading && (
+                                <div className="text-white/60 text-sm mb-4">
+                                    {language === 'en' ? 'Loading products...' : 'Загрузка продуктов...'}
+                                </div>
+                            )}
+
+                            {productsError && (
+                                <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-4">
+                                    <p className="text-red-200 text-sm">{productsError}</p>
+                                    <button
+                                        onClick={loadProducts}
+                                        className="mt-2 text-red-200 hover:text-white underline text-sm"
+                                    >
+                                        {language === 'en' ? 'Try again' : 'Попробовать снова'}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Add Product Form */}
+                            {(isCreatingProduct || editingProduct) && (
+                                <div className="bg-white/5 rounded-lg p-4 mb-6 space-y-4">
+                                    <h3 className="text-lg font-semibold text-white mb-4">
+                                        {editingProduct
+                                            ? (language === 'en' ? 'Edit Product' : 'Редактировать продукт')
+                                            : (language === 'en' ? 'Add New Product' : 'Добавить новый продукт')}
+                                    </h3>
 
                             <div>
                                 <label className="block text-white/80 mb-2">
@@ -297,17 +361,73 @@ const Nutrition: React.FC = () => {
                                 </div>
                             </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-white/80 mb-2">
+                                        {language === 'en' ? 'Pros' : 'Плюсы продукта'}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={productPros}
+                                        onChange={(e) => setProductPros(e.target.value)}
+                                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                        placeholder={language === 'en' ? 'Optional pros...' : 'Плюсы (необязательно)'}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-white/80 mb-2">
+                                        {language === 'en' ? 'Cons' : 'Минусы продукта'}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={productCons}
+                                        onChange={(e) => setProductCons(e.target.value)}
+                                        className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                        placeholder={language === 'en' ? 'Optional cons...' : 'Минусы (необязательно)'}
+                                    />
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-white/80 mb-2">
-                                    {language === 'en' ? 'Notes' : 'Записи'}
+                                    {language === 'en' ? 'Description' : 'Описание продукта'}
                                 </label>
                                 <textarea
-                                    value={productNotes}
-                                    onChange={(e) => setProductNotes(e.target.value)}
+                                    value={productDescription}
+                                    onChange={(e) => setProductDescription(e.target.value)}
                                     rows={3}
                                     className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                    placeholder={language === 'en' ? 'Add your notes about this product...' : 'Добавьте заметки об этом продукте...'}
+                                    placeholder={language === 'en' ? 'Describe this product...' : 'Опишите продукт...'}
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-white/80 mb-2">
+                                    {language === 'en' ? 'Photo URL (optional)' : 'Ссылка на фото (необязательно)'}
+                                </label>
+                                <input
+                                    type="url"
+                                    value={productPhotoUrl}
+                                    onChange={(e) => setProductPhotoUrl(e.target.value)}
+                                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                    placeholder="https://..."
+                                />
+                                <div className="mt-3">
+                                    <label className="block text-white/60 text-sm mb-2">
+                                        {language === 'en' ? 'Or upload from device' : 'Или загрузить с устройства'}
+                                    </label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => handleProductPhotoUpload(e.target.files?.[0])}
+                                        className="block w-full text-white/70 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white/10 file:text-white hover:file:bg-white/20"
+                                    />
+                                    {productPhotoUploading && (
+                                        <p className="text-white/60 text-sm mt-2">
+                                            {language === 'en' ? 'Uploading...' : 'Загрузка...'}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="flex space-x-3">
@@ -317,7 +437,10 @@ const Nutrition: React.FC = () => {
                                             const payload = {
                                                 name: productName.trim(),
                                                 assessment: productAssessment,
-                                                notes: productNotes
+                                                notes: productDescription,
+                                                pros: productPros,
+                                                cons: productCons,
+                                                photo_url: productPhotoUrl
                                             };
 
                                             if (editingProduct) {
@@ -328,7 +451,10 @@ const Nutrition: React.FC = () => {
 
                                             setProductName('');
                                             setProductAssessment('neutral');
-                                            setProductNotes('');
+                                            setProductPros('');
+                                            setProductCons('');
+                                            setProductDescription('');
+                                            setProductPhotoUrl('');
                                             setIsCreatingProduct(false);
                                             setEditingProduct(null);
                                         }
@@ -343,7 +469,10 @@ const Nutrition: React.FC = () => {
                                     onClick={() => {
                                         setProductName('');
                                         setProductAssessment('neutral');
-                                        setProductNotes('');
+                                        setProductPros('');
+                                        setProductCons('');
+                                        setProductDescription('');
+                                        setProductPhotoUrl('');
                                         setIsCreatingProduct(false);
                                         setEditingProduct(null);
                                     }}
@@ -352,75 +481,97 @@ const Nutrition: React.FC = () => {
                                     {language === 'en' ? 'Cancel' : 'Отмена'}
                                 </button>
                             </div>
-                        </div>
-                    )}
-
-                    {/* Products List */}
-                    <div className="space-y-3">
-                        {products.length === 0 ? (
-                            <div className="text-center py-8">
-                                <Package className="w-16 h-16 text-white/20 mx-auto mb-4" />
-                                <p className="text-white/60">
-                                    {language === 'en'
-                                        ? 'No products added yet. Add your first product above.'
-                                        : 'Продукты еще не добавлены. Добавьте первый продукт выше.'}
-                                </p>
-                            </div>
-                        ) : (
-                            products.map(product => (
-                                <div
-                                    key={product.id}
-                                    className={`bg-white/5 rounded-lg p-4 flex items-center justify-between ${product.assessment === 'positive'
-                                        ? 'border-l-4 border-green-500'
-                                        : product.assessment === 'negative'
-                                            ? 'border-l-4 border-red-500'
-                                            : 'border-l-4 border-yellow-500'
-                                        }`}
-                                >
-                                    <div className="flex-1">
-                                        <div className="flex items-center space-x-3 mb-2">
-                                            <h4 className="text-lg font-semibold text-white">{product.name}</h4>
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.assessment === 'positive'
-                                                ? 'bg-green-500/20 text-green-400'
-                                                : product.assessment === 'negative'
-                                                    ? 'bg-red-500/20 text-red-400'
-                                                    : 'bg-yellow-500/20 text-yellow-400'
-                                                }`}>
-                                                {product.assessment === 'positive'
-                                                    ? (language === 'en' ? 'Positive' : 'Положительный')
-                                                    : product.assessment === 'negative'
-                                                        ? (language === 'en' ? 'Negative' : 'Отрицательный')
-                                                        : (language === 'en' ? 'Neutral' : 'Средний')}
-                                            </span>
-                                        </div>
-                                        {product.notes && (
-                                            <p className="text-white/60 text-sm">{product.notes}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <button
-                                            onClick={() => {
-                                                setEditingProduct(product);
-                                                setIsCreatingProduct(false);
-                                                setProductName(product.name);
-                                                setProductAssessment(product.assessment);
-                                                setProductNotes(product.notes || '');
-                                            }}
-                                            className="text-white/70 hover:text-white transition-colors"
-                                        >
-                                            <Edit2 className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => deleteProduct(product.id)}
-                                            className="text-red-400 hover:text-red-300 transition-colors"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
                                 </div>
-                            ))
-                        )}
-                    </div>
+                            )}
+
+                            {/* Products List */}
+                            <div className="space-y-3">
+                                {products.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <Package className="w-16 h-16 text-white/20 mx-auto mb-4" />
+                                        <p className="text-white/60">
+                                            {language === 'en'
+                                                ? 'No products added yet. Add your first product above.'
+                                                : 'Продукты еще не добавлены. Добавьте первый продукт выше.'}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    products.map(product => (
+                                        <div
+                                            key={product.id}
+                                            className={`bg-white/5 rounded-lg p-4 flex items-center justify-between ${product.assessment === 'positive'
+                                                ? 'border-l-4 border-green-500'
+                                                : product.assessment === 'negative'
+                                                    ? 'border-l-4 border-red-500'
+                                                    : 'border-l-4 border-yellow-500'
+                                                }`}
+                                        >
+                                            <div className="flex-1">
+                                                <div className="flex items-center space-x-3 mb-2">
+                                                    <h4 className="text-lg font-semibold text-white">{product.name}</h4>
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.assessment === 'positive'
+                                                        ? 'bg-green-500/20 text-green-400'
+                                                        : product.assessment === 'negative'
+                                                            ? 'bg-red-500/20 text-red-400'
+                                                            : 'bg-yellow-500/20 text-yellow-400'
+                                                        }`}>
+                                                        {product.assessment === 'positive'
+                                                            ? (language === 'en' ? 'Positive' : 'Положительный')
+                                                            : product.assessment === 'negative'
+                                                                ? (language === 'en' ? 'Negative' : 'Отрицательный')
+                                                                : (language === 'en' ? 'Neutral' : 'Средний')}
+                                                    </span>
+                                                </div>
+                                                {(product.notes || product.pros || product.cons || product.photo_url || (product.photo_urls && product.photo_urls.length)) && (
+                                                    <div className="text-white/60 text-sm space-y-1">
+                                                        {product.notes && <p>{product.notes}</p>}
+                                                        {product.pros && <p className="text-green-300">+ {product.pros}</p>}
+                                                        {product.cons && <p className="text-red-300">- {product.cons}</p>}
+                                                        {getProductPhotoUrls(product).length > 0 && (
+                                                            <div className="mt-2 grid gap-3 md:grid-cols-2">
+                                                                {getProductPhotoUrls(product).map((url, index) => (
+                                                                    <img
+                                                                        key={`${url}-${index}`}
+                                                                        src={url}
+                                                                        alt={language === 'en' ? 'Product photo' : 'Фото продукта'}
+                                                                        className="max-w-full rounded-lg border border-white/20"
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingProduct(product);
+                                                        setIsCreatingProduct(false);
+                                                        setProductName(product.name);
+                                                        setProductAssessment(product.assessment);
+                                                        setProductPros(product.pros || '');
+                                                        setProductCons(product.cons || '');
+                                                        setProductDescription(product.notes || '');
+                                                        setProductPhotoUrl(product.photo_url || '');
+                                                        setShowProducts(true);
+                                                    }}
+                                                    className="text-white/70 hover:text-white transition-colors"
+                                                >
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteProduct(product.id)}
+                                                    className="text-red-400 hover:text-red-300 transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Create/Edit Form */}

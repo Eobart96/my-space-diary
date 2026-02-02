@@ -1,7 +1,11 @@
 import axios from 'axios';
 import { DiaryEntry, CreateDiaryRequest, NutritionEntry, CreateNutritionRequest, DailyNutritionSummary, NutritionProduct, CreateNutritionProductRequest, UpdateNutritionProductRequest } from '../types';
 
-const API_BASE_URL = '/api';
+const rawApiBaseUrl = import.meta.env.VITE_API_URL;
+const normalizedApiBaseUrl = rawApiBaseUrl ? rawApiBaseUrl.replace(/\/$/, '') : '';
+const API_BASE_URL = normalizedApiBaseUrl
+    ? (normalizedApiBaseUrl.endsWith('/api') ? normalizedApiBaseUrl : `${normalizedApiBaseUrl}/api`)
+    : '/api';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -66,4 +70,26 @@ export const nutritionAPI = {
     deleteProduct: async (id: number): Promise<void> => {
         await api.delete(`/nutrition/products/${id}`);
     },
+};
+
+export const uploadsAPI = {
+    upload: async (file: File): Promise<{ url: string }> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await api.post('/uploads', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    }
+};
+
+export const telegramSettingsAPI = {
+    get: async (): Promise<{ token: string; allowedUserId: number | null; timezoneOffsetMinutes: number | null; timezoneCity: string; timezoneIana: string | null }> => {
+        const response = await api.get('/telegram-settings');
+        return response.data;
+    },
+    update: async (payload: { token: string; allowedUserId: number | null; timezoneOffsetMinutes: number | null; timezoneCity: string }): Promise<{ token: string; allowedUserId: number | null; timezoneOffsetMinutes: number | null; timezoneCity: string; timezoneIana: string | null }> => {
+        const response = await api.put('/telegram-settings', payload);
+        return response.data;
+    }
 };

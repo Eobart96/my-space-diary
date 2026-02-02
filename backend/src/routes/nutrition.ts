@@ -19,6 +19,9 @@ router.post(
         body('name').notEmpty().withMessage('Name is required'),
         body('assessment').isIn(['positive', 'negative', 'neutral']).withMessage('Assessment must be positive|negative|neutral'),
         body('notes').optional().isString(),
+        body('pros').optional().isString(),
+        body('cons').optional().isString(),
+        body('photo_url').optional().isString(),
     ],
     validateRequest,
     createProduct
@@ -29,6 +32,9 @@ router.put(
         body('name').optional().notEmpty().withMessage('Name cannot be empty'),
         body('assessment').optional().isIn(['positive', 'negative', 'neutral']).withMessage('Assessment must be positive|negative|neutral'),
         body('notes').optional().isString(),
+        body('pros').optional().isString(),
+        body('cons').optional().isString(),
+        body('photo_url').optional().isString(),
     ],
     validateRequest,
     updateProduct

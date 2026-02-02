@@ -48,6 +48,10 @@ export interface NutritionProduct {
     name: string;
     assessment: NutritionProductAssessment;
     notes: string;
+    pros: string;
+    cons: string;
+    photo_url?: string;
+    photo_urls?: string[];
     created_at: Date;
     updated_at: Date;
 }
@@ -56,10 +60,18 @@ export interface CreateNutritionProductRequest {
     name: string;
     assessment: NutritionProductAssessment;
     notes?: string;
+    pros?: string;
+    cons?: string;
+    photo_url?: string;
+    photo_urls?: string[];
 }
 
 export interface UpdateNutritionProductRequest {
     name?: string;
     assessment?: NutritionProductAssessment;
     notes?: string;
+    pros?: string;
+    cons?: string;
+    photo_url?: string;
+    photo_urls?: string[];
 }

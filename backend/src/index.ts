@@ -7,6 +7,10 @@ import { Pool } from 'pg';
 
 import diaryRoutes from './routes/diary';
 import nutritionRoutes from './routes/nutrition';
+import uploadsRoutes from './routes/uploads';
+import telegramFilesRoutes from './routes/telegramFiles';
+import telegramSettingsRoutes from './routes/telegramSettings';
+import path from 'path';
 
 dotenv.config();
 
@@ -43,6 +47,13 @@ app.use((req: any, res: any, next: any) => {
 // Routes
 app.use('/api/diary', diaryRoutes);
 app.use('/api/nutrition', nutritionRoutes);
+app.use('/api/uploads', uploadsRoutes);
+app.use('/api/telegram-files', telegramFilesRoutes);
+app.use('/api/telegram-settings', telegramSettingsRoutes);
+app.use('/uploads', (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+}, express.static(path.resolve(process.cwd(), 'uploads')));
 
 // Health check
 app.get('/api/health', (req: any, res: any) => {

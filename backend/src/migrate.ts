@@ -54,6 +54,9 @@ async function migrate() {
 
     // Backward-compatible schema upgrades
     await client.query(`ALTER TABLE diary_entries ADD COLUMN IF NOT EXISTS time TEXT`);
+    await client.query(`ALTER TABLE diary_entries ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    await client.query(`ALTER TABLE diary_entries ADD COLUMN IF NOT EXISTS photo_urls TEXT[]`);
+    await client.query(`UPDATE diary_entries SET photo_urls = ARRAY[photo_url] WHERE photo_urls IS NULL AND photo_url IS NOT NULL`);
     await client.query(`UPDATE diary_entries SET time = COALESCE(time, to_char(created_at, 'HH24:MI'))`);
     await client.query(`ALTER TABLE diary_entries ALTER COLUMN time SET NOT NULL`);
 
@@ -86,6 +89,12 @@ async function migrate() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    await client.query(`ALTER TABLE nutrition_products ADD COLUMN IF NOT EXISTS pros TEXT NOT NULL DEFAULT ''`);
+    await client.query(`ALTER TABLE nutrition_products ADD COLUMN IF NOT EXISTS cons TEXT NOT NULL DEFAULT ''`);
+    await client.query(`ALTER TABLE nutrition_products ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    await client.query(`ALTER TABLE nutrition_products ADD COLUMN IF NOT EXISTS photo_urls TEXT[]`);
+    await client.query(`UPDATE nutrition_products SET photo_urls = ARRAY[photo_url] WHERE photo_urls IS NULL AND photo_url IS NOT NULL`);
 
     // Indexes
     await client.query(`

@@ -70,6 +70,10 @@ export const getProducts = async (req: Request, res: Response) => {
                     name,
                     assessment,
                     notes,
+                    pros,
+                    cons,
+                    photo_url,
+                    photo_urls,
                     created_at,
                     updated_at
                 FROM nutrition_products
@@ -85,22 +89,31 @@ export const getProducts = async (req: Request, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
     try {
-        const { name, assessment, notes }: CreateNutritionProductRequest = req.body;
+        const { name, assessment, notes, pros, cons, photo_url, photo_urls }: CreateNutritionProductRequest = req.body;
+        const normalizedPhotoUrls = Array.isArray(photo_urls)
+            ? photo_urls
+            : photo_url
+                ? [photo_url]
+                : null;
 
         const result = await getPool(req).query(
             `
-                INSERT INTO nutrition_products (name, assessment, notes)
-                VALUES ($1, $2, $3)
+                INSERT INTO nutrition_products (name, assessment, notes, pros, cons, photo_url, photo_urls)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING
                     id,
                     user_id,
                     name,
                     assessment,
                     notes,
+                    pros,
+                    cons,
+                    photo_url,
+                    photo_urls,
                     created_at,
                     updated_at
             `,
-            [name, assessment, notes ?? '']
+            [name, assessment, notes ?? '', pros ?? '', cons ?? '', photo_url ?? null, normalizedPhotoUrls]
         );
 
         res.status(201).json(result.rows[0]);
@@ -113,7 +126,12 @@ export const createProduct = async (req: Request, res: Response) => {
 export const updateProduct = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { name, assessment, notes }: UpdateNutritionProductRequest = req.body;
+        const { name, assessment, notes, pros, cons, photo_url, photo_urls }: UpdateNutritionProductRequest = req.body;
+        const normalizedPhotoUrls = Array.isArray(photo_urls)
+            ? photo_urls
+            : photo_url
+                ? [photo_url]
+                : null;
 
         const result = await getPool(req).query(
             `
@@ -122,18 +140,26 @@ export const updateProduct = async (req: Request, res: Response) => {
                     name = COALESCE($1, name),
                     assessment = COALESCE($2, assessment),
                     notes = COALESCE($3, notes),
+                    pros = COALESCE($4, pros),
+                    cons = COALESCE($5, cons),
+                    photo_url = COALESCE($6, photo_url),
+                    photo_urls = COALESCE($7, photo_urls),
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = $4
+                WHERE id = $8
                 RETURNING
                     id,
                     user_id,
                     name,
                     assessment,
                     notes,
+                    pros,
+                    cons,
+                    photo_url,
+                    photo_urls,
                     created_at,
                     updated_at
             `,
-            [name ?? null, assessment ?? null, notes ?? null, id]
+            [name ?? null, assessment ?? null, notes ?? null, pros ?? null, cons ?? null, photo_url ?? null, normalizedPhotoUrls, id]
         );
 
         if (result.rows.length === 0) {

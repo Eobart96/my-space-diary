@@ -16,6 +16,8 @@ export const getEntries = async (req: Request, res: Response) => {
                 time,
                 text,
                 mood,
+                photo_url,
+                photo_urls,
                 created_at,
                 updated_at
             FROM diary_entries
@@ -32,6 +34,8 @@ export const getEntries = async (req: Request, res: Response) => {
                     time,
                     text,
                     mood,
+                    photo_url,
+                    photo_urls,
                     created_at,
                     updated_at
                 FROM diary_entries
@@ -51,12 +55,17 @@ export const getEntries = async (req: Request, res: Response) => {
 
 export const createEntry = async (req: Request, res: Response) => {
     try {
-        const { date, time, text, mood }: CreateDiaryRequest = req.body;
+        const { date, time, text, mood, photo_url, photo_urls }: CreateDiaryRequest = req.body;
+        const normalizedPhotoUrls = Array.isArray(photo_urls)
+            ? photo_urls
+            : photo_url
+                ? [photo_url]
+                : null;
 
         const result = await getPool(req).query(
             `
-                INSERT INTO diary_entries (date, time, text, mood)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO diary_entries (date, time, text, mood, photo_url, photo_urls)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING
                     id,
                     user_id,
@@ -64,10 +73,12 @@ export const createEntry = async (req: Request, res: Response) => {
                     time,
                     text,
                     mood,
+                    photo_url,
+                    photo_urls,
                     created_at,
                     updated_at
             `,
-            [date, time, text, mood ?? null]
+            [date, time, text, mood ?? null, photo_url ?? null, normalizedPhotoUrls]
         );
 
         res.status(201).json(result.rows[0]);
@@ -80,7 +91,12 @@ export const createEntry = async (req: Request, res: Response) => {
 export const updateEntry = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { date, time, text, mood } = req.body;
+        const { date, time, text, mood, photo_url, photo_urls } = req.body;
+        const normalizedPhotoUrls = Array.isArray(photo_urls)
+            ? photo_urls
+            : photo_url
+                ? [photo_url]
+                : null;
 
         const result = await getPool(req).query(
             `
@@ -90,8 +106,10 @@ export const updateEntry = async (req: Request, res: Response) => {
                     time = COALESCE($2, time),
                     text = COALESCE($3, text),
                     mood = COALESCE($4, mood),
+                    photo_url = COALESCE($5, photo_url),
+                    photo_urls = COALESCE($6, photo_urls),
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = $5
+                WHERE id = $7
                 RETURNING
                     id,
                     user_id,
@@ -99,10 +117,12 @@ export const updateEntry = async (req: Request, res: Response) => {
                     time,
                     text,
                     mood,
+                    photo_url,
+                    photo_urls,
                     created_at,
                     updated_at
             `,
-            [date ?? null, time ?? null, text ?? null, mood ?? null, id]
+            [date ?? null, time ?? null, text ?? null, mood ?? null, photo_url ?? null, normalizedPhotoUrls, id]
         );
 
         if (result.rows.length === 0) {
@@ -131,6 +151,8 @@ export const deleteEntry = async (req: Request, res: Response) => {
                     time,
                     text,
                     mood,
+                    photo_url,
+                    photo_urls,
                     created_at,
                     updated_at
             `,

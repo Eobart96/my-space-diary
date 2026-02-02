@@ -1,6 +1,6 @@
-# My Space - Diary & Nutrition App
+# My Space - Diary & Nutrition App (v1.2)
 
-Production-ready web application with diary and nutrition tracking modules, now with product management system.
+Production-ready web application with diary and nutrition tracking modules, now with product management system and Telegram bot support.
 
 ## Technology Stack
 
@@ -36,6 +36,41 @@ docker-compose -f docker-compose.dev.yml up -d --build
 Development access:
 - Frontend: http://localhost:3001
 - Backend API: http://localhost:5000
+
+## Быстрый старт (RU)
+
+```bash
+# Клонирование
+git clone <your-repo-url>
+cd myspace
+
+# Переменные окружения
+cp .env.example .env
+
+# Запуск (production-like)
+docker-compose up -d --build
+```
+
+Доступ: http://localhost:3000
+
+## Разработка (RU)
+
+```bash
+docker-compose -f docker-compose.dev.yml up -d --build
+```
+
+Доступ:
+- Frontend: http://localhost:3001
+- Backend API: http://localhost:5000
+
+## v1.2 Highlights
+
+- Telegram bot (thin client) with diary + nutrition flows
+- Bot settings stored persistently (token + allowed user)
+- Timezone by city or by bot geolocation (/timezone)
+- Photo uploads for diary & products (up to 3 photos)
+- Frontend image upload + gallery display
+- Products section can be collapsed
 
 ## System Requirements
 
@@ -76,6 +111,34 @@ docker-compose -f docker-compose.prod.yml up -d --build
 
 See [DEPLOYMENT_UBUNTU.md](DEPLOYMENT_UBUNTU.md) for detailed deployment guide.
 
+## Обновление проекта на сервере (RU)
+
+Если проект уже развернут на сервере:
+
+```bash
+# Перейти в папку проекта
+cd /path/to/myspace
+
+# Получить последние изменения
+git pull
+
+# Пересобрать и перезапустить (prod)
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+Если используется стандартный прод compose:
+
+```bash
+docker-compose up -d --build
+```
+
+При необходимости очистить БД (осторожно, удалит данные):
+
+```bash
+docker-compose -f docker-compose.prod.yml down -v
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
 ## Project Structure
 
 ```
@@ -106,7 +169,7 @@ See [DEPLOYMENT_UBUNTU.md](DEPLOYMENT_UBUNTU.md) for detailed deployment guide.
 - CRUD diary entries with mood tracking (1-5 scale)
 - Time-based entries with search and filtering
 - Responsive diary interface with mood visualization
-- LocalStorage persistence for offline functionality
+- Photo attachments (web upload + Telegram)
 
 ### 🥗 **Nutrition Module**
 - Track meals with calories and macronutrients (proteins, fats, carbs)
@@ -119,7 +182,8 @@ See [DEPLOYMENT_UBUNTU.md](DEPLOYMENT_UBUNTU.md) for detailed deployment guide.
 - Product assessment: Positive, Neutral, or Negative
 - Add detailed notes for each product
 - Visual indicators with color-coded assessment badges
-- Persistent storage in localStorage
+- Optional pros/cons/description
+- Photo attachments (web upload + Telegram)
 
 ### 🌐 **Internationalization**
 - Multi-language support (English/Russian)
@@ -150,6 +214,26 @@ See `DATABASE_SCHEMA.md` for detailed schema information.
 - **Auth**: POST /api/auth/register, POST /api/auth/login
 - **Diary**: GET/POST/PUT/DELETE /api/diary
 - **Nutrition**: GET/POST/PUT/DELETE /api/nutrition, GET /api/nutrition/summary
+- **Nutrition Products**: GET/POST/PUT/DELETE /api/nutrition/products
+- **Uploads**: POST /api/uploads
+- **Telegram Settings**: GET/PUT /api/telegram-settings
+- **Telegram File Proxy**: GET /api/telegram-files?file_id=...
+
+## Telegram Bot
+
+### Setup
+1) Open **Settings → Telegram bot** in the web UI.
+2) Paste **Bot Token**.
+3) Set **Allowed User ID** (optional). If set, bot ignores everyone else.
+4) Set **City** for timezone (e.g., "Москва").  
+   Or send `/timezone` in Telegram and share location once.
+
+### Commands
+- /start, /help
+- /add_diary, /diary_today, /diary_all
+- /add_food, /products
+- /edit_diary, /edit_product
+- /timezone (set timezone from location)
 
 ## Development
 
@@ -170,11 +254,14 @@ See `DEPLOYMENT.md` for Linux VPS deployment instructions.
 
 ## Recent Updates
 
-### v1.0 - Product Management System
-- ✅ Added comprehensive product management to Nutrition module
-- ✅ Implemented localStorage persistence for products
-- ✅ Added product assessment system (Positive/Neutral/Negative)
-- ✅ Enhanced UI with color-coded product indicators
-- ✅ Improved internationalization support
-- ✅ Fixed responsive design issues
-- ✅ Optimized performance and user experience
+### v1.2
+- ✅ Telegram bot integration (Diary + Nutrition)
+- ✅ Persistent bot settings (token + allowed user)
+- ✅ Timezone by city / geolocation (/timezone)
+- ✅ Photo uploads + gallery (web + Telegram, up to 3)
+- ✅ Products: pros/cons/description fields
+- ✅ Products section collapse toggle
+
+### v1.0
+- ✅ Product management system
+- ✅ Product assessment (Positive/Neutral/Negative)

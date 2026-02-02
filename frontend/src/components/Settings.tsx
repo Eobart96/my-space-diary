@@ -1,12 +1,71 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Globe, ArrowLeft } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { telegramSettingsAPI } from '../lib/api';
 
 const Settings: React.FC = () => {
     const { settings, updateSettings } = useSettings();
     const { language } = useLanguage();
+    const [botToken, setBotToken] = useState('');
+    const [botUserId, setBotUserId] = useState('');
+    const [botTimezoneCity, setBotTimezoneCity] = useState('');
+    const [botStatus, setBotStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const [botError, setBotError] = useState('');
+
+    useEffect(() => {
+        let mounted = true;
+        telegramSettingsAPI.get()
+            .then((data) => {
+                if (!mounted) return;
+                setBotToken(data.token || '');
+                setBotUserId(data.allowedUserId ? String(data.allowedUserId) : '');
+                setBotTimezoneCity(data.timezoneCity || '');
+            })
+            .catch(() => {
+                if (!mounted) return;
+                setBotError(language === 'en' ? 'Failed to load bot settings' : 'Не удалось загрузить настройки бота');
+                setBotStatus('error');
+            });
+        return () => {
+            mounted = false;
+        };
+    }, [language]);
+
+    const handleSaveBotSettings = async () => {
+        const token = botToken.trim();
+        if (!token) {
+            setBotError(language === 'en' ? 'Token is required' : 'Нужен токен бота');
+            setBotStatus('error');
+            return;
+        }
+        const allowed = botUserId.trim();
+        const allowedUserId = allowed ? Number.parseInt(allowed, 10) : null;
+        if (allowed && !Number.isFinite(allowedUserId)) {
+            setBotError(language === 'en' ? 'User ID must be a number' : 'ID пользователя должен быть числом');
+            setBotStatus('error');
+            return;
+        }
+        const city = botTimezoneCity.trim();
+        setBotStatus('saving');
+        setBotError('');
+        try {
+            const updated = await telegramSettingsAPI.update({
+                token,
+                allowedUserId: Number.isFinite(allowedUserId) ? allowedUserId : null,
+                timezoneOffsetMinutes: null,
+                timezoneCity: city
+            });
+            setBotToken(updated.token || token);
+            setBotUserId(updated.allowedUserId ? String(updated.allowedUserId) : '');
+            setBotTimezoneCity(updated.timezoneCity || '');
+            setBotStatus('saved');
+        } catch (error) {
+            setBotError(language === 'en' ? 'Failed to save settings' : 'Не удалось сохранить настройки');
+            setBotStatus('error');
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
@@ -151,6 +210,84 @@ const Settings: React.FC = () => {
                                     <option value="asc" className="bg-white text-black">{language === 'en' ? 'Oldest First' : 'Сначала старые'}</option>
                                 </select>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Telegram Bot Settings */}
+                    <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-6">
+                        <div className="flex items-center mb-6">
+                            <div className="text-3xl mr-3">🤖</div>
+                            <h2 className="text-2xl font-bold text-white">
+                                {language === 'en' ? 'Telegram Bot' : 'Telegram бот'}
+                            </h2>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-white/80 mb-2">
+                                    {language === 'en' ? 'Bot Token' : 'Токен бота'}
+                                </label>
+                                <input
+                                    type="password"
+                                    value={botToken}
+                                    onChange={(e) => setBotToken(e.target.value)}
+                                    placeholder={language === 'en' ? '123456:ABC...' : '123456:ABC...'}
+                                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-white/80 mb-2">
+                                    {language === 'en' ? 'Allowed User ID' : 'ID пользователя'}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={botUserId}
+                                    onChange={(e) => setBotUserId(e.target.value)}
+                                    placeholder={language === 'en' ? 'e.g. 123456789' : 'например 123456789'}
+                                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                />
+                                <p className="text-white/60 text-xs mt-2">
+                                    {language === 'en'
+                                        ? 'If empty, bot will respond to everyone.'
+                                        : 'Если пусто — бот отвечает всем.'}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-white/80 mb-2">
+                                    {language === 'en' ? 'City for timezone' : 'Город (для времени)'}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={botTimezoneCity}
+                                    onChange={(e) => setBotTimezoneCity(e.target.value)}
+                                    placeholder={language === 'en' ? 'e.g. Moscow' : 'например Москва'}
+                                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                />
+                                <p className="text-white/60 text-xs mt-2">
+                                    {language === 'en'
+                                        ? 'Or send location to bot with /timezone.'
+                                        : 'Или отправь геолокацию боту командой /timezone.'}
+                                </p>
+                            </div>
+                            {botStatus === 'error' && botError && (
+                                <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-200 text-sm">
+                                    {botError}
+                                </div>
+                            )}
+                            {botStatus === 'saved' && (
+                                <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-3 text-green-200 text-sm">
+                                    {language === 'en' ? 'Saved. Bot will reconnect shortly.' : 'Сохранено. Бот переподключится.'}
+                                </div>
+                            )}
+                            <button
+                                type="button"
+                                onClick={handleSaveBotSettings}
+                                disabled={botStatus === 'saving'}
+                                className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-60"
+                            >
+                                {botStatus === 'saving'
+                                    ? (language === 'en' ? 'Saving...' : 'Сохранение...')
+                                    : (language === 'en' ? 'Connect Bot' : 'Подключить бота')}
+                            </button>
                         </div>
                     </div>
 

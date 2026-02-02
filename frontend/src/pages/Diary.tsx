@@ -6,6 +6,8 @@ import { DiaryEntry, CreateDiaryRequest } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useDiary } from '../hooks/useDiary';
+import { uploadsAPI } from '../lib/api';
+import { getCurrentTime, getTimeOfDayIcon, getTimeOfDayLabel } from '../utils/timeUtils';
 
 const moodEmojis = {
     1: '😢',
@@ -30,27 +32,52 @@ const Diary: React.FC = () => {
     const { entries, loading, error, addEntry, updateEntry, deleteEntry, getEntries, refreshEntries } = useDiary();
     const [isCreating, setIsCreating] = useState(false);
     const [editingEntry, setEditingEntry] = useState<DiaryEntry | null>(null);
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const rawApiBaseUrl = import.meta.env.VITE_API_URL as string | undefined;
+    const normalizedApiBaseUrl = rawApiBaseUrl ? rawApiBaseUrl.replace(/\/$/, '') : '';
+    const uploadsBaseUrl = normalizedApiBaseUrl
+        ? (normalizedApiBaseUrl.endsWith('/api') ? normalizedApiBaseUrl.slice(0, -4) : normalizedApiBaseUrl)
+        : '';
+    const apiBaseUrl = normalizedApiBaseUrl
+        ? (normalizedApiBaseUrl.endsWith('/api') ? normalizedApiBaseUrl : `${normalizedApiBaseUrl}/api`)
+        : '/api';
+    const getLocalDateString = (date: Date = new Date()) => {
+        const tzOffsetMs = date.getTimezoneOffset() * 60000;
+        return new Date(date.getTime() - tzOffsetMs).toISOString().split('T')[0];
+    };
+
+    const [selectedDate, setSelectedDate] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [showSettings, setShowSettings] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [selectedMood, setSelectedMood] = useState<number>(3);
+    const [photoUploading, setPhotoUploading] = useState(false);
 
     useEffect(() => {
-        refreshEntries(selectedDate);
-    }, [selectedDate, refreshEntries]);
+        refreshEntries();
+    }, [refreshEntries]);
 
     const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CreateDiaryRequest>({
         defaultValues: {
-            date: new Date().toISOString().split('T')[0],
-            time: '12:00',
+            date: getLocalDateString(),
+            time: getCurrentTime(settings.timeFormat),
             text: '',
             mood: 3
         }
     });
 
+    useEffect(() => {
+        if (isCreating && !editingEntry) {
+            const now = new Date();
+            const dateValue = selectedDate || getLocalDateString(now);
+            const timeValue = getCurrentTime(settings.timeFormat);
+            setValue('date', dateValue, { shouldValidate: true });
+            setValue('time', timeValue, { shouldValidate: true });
+            setSelectedMood(3);
+        }
+    }, [isCreating, editingEntry, selectedDate, settings.timeFormat, setValue]);
+
     const filteredEntries = useMemo(() => {
-        const entriesForDate = getEntries(selectedDate);
+        const entriesForDate = getEntries(selectedDate || undefined);
         if (!searchTerm) return entriesForDate;
         const q = searchTerm.toLowerCase();
         return entriesForDate.filter((entry: DiaryEntry) =>
@@ -59,21 +86,54 @@ const Diary: React.FC = () => {
         );
     }, [getEntries, selectedDate, searchTerm]);
 
-    const getTimeDisplay = (time: string) => {
-        return time || '12:00';
+    const timeOfDayKeys = new Set(['morning', 'afternoon', 'evening', 'night']);
+
+    const isTimeOfDay = (value?: string) => {
+        return Boolean(value && timeOfDayKeys.has(value));
     };
 
-    const getTimeIcon = () => {
-        return '🕐';
+    const getTimeDisplay = (time?: string) => {
+        if (!time) return '12:00';
+        return isTimeOfDay(time) ? getTimeOfDayLabel(time, language) : time;
+    };
+
+    const getTimeIcon = (time?: string) => {
+        return isTimeOfDay(time) ? getTimeOfDayIcon(time!) : '🕐';
+    };
+
+    const normalizePhotoUrl = (url?: string | null) => {
+        if (!url) return null;
+        if (url.startsWith('http')) return url;
+        if (url.startsWith('/uploads')) {
+            return uploadsBaseUrl ? `${uploadsBaseUrl}${url}` : url;
+        }
+        if (url.startsWith('uploads/')) {
+            return uploadsBaseUrl ? `${uploadsBaseUrl}/${url}` : `/${url}`;
+        }
+        return `${apiBaseUrl}/telegram-files?file_id=${encodeURIComponent(url)}`;
+    };
+
+    const getEntryPhotoUrls = (entry: DiaryEntry) => {
+        const rawUrls = Array.isArray(entry.photo_urls) && entry.photo_urls.length
+            ? entry.photo_urls
+            : entry.photo_url
+                ? [entry.photo_url]
+                : [];
+        return rawUrls
+            .map((url) => normalizePhotoUrl(url))
+            .filter((url): url is string => Boolean(url))
+            .slice(0, 3);
     };
 
     const onSubmit = async (data: CreateDiaryRequest) => {
+        const submitData = { ...data };
         if (editingEntry) {
-            await updateEntry(editingEntry.id, data);
+            await updateEntry(editingEntry.id, submitData);
         } else {
-            await addEntry(data);
+            submitData.date = submitData.date || getLocalDateString();
+            await addEntry(submitData);
         }
-        await refreshEntries(selectedDate);
+        await refreshEntries();
         reset();
         setIsCreating(false);
         setEditingEntry(null);
@@ -82,17 +142,31 @@ const Diary: React.FC = () => {
     const handleEdit = (entry: DiaryEntry) => {
         setEditingEntry(entry);
         reset({
-            date: entry.date?.split('T')[0] || new Date().toISOString().split('T')[0],
+            date: entry.date?.split('T')[0] || getLocalDateString(),
             time: entry.time || new Date(entry.created_at).toTimeString().slice(0, 5),
             text: entry.text,
-            mood: entry.mood || undefined
+            mood: entry.mood || undefined,
+            photo_url: entry.photo_url || ''
         });
+    };
+
+    const handlePhotoUpload = async (file?: File) => {
+        if (!file) return;
+        try {
+            setPhotoUploading(true);
+            const result = await uploadsAPI.upload(file);
+            setValue('photo_url', result.url, { shouldValidate: false });
+        } catch (error) {
+            console.error('Photo upload failed:', error);
+        } finally {
+            setPhotoUploading(false);
+        }
     };
 
     const handleDelete = async (id: number) => {
         if (window.confirm(language === 'en' ? 'Are you sure?' : 'Вы уверены?')) {
             await deleteEntry(id);
-            await refreshEntries(selectedDate);
+            await refreshEntries();
         }
     };
 
@@ -173,6 +247,15 @@ const Diary: React.FC = () => {
                                         onChange={(e) => setSelectedDate(e.target.value)}
                                         className="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/50"
                                     />
+                                    {selectedDate && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedDate('')}
+                                            className="text-white/70 hover:text-white text-sm underline"
+                                        >
+                                            {language === 'en' ? 'All dates' : 'Все даты'}
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="text-white/60 text-sm">
                                     {entries.length} {entries.length === 1 ? 'entry' : 'entries'} {language === 'en' ? 'total' : 'всего'}
@@ -336,6 +419,34 @@ const Diary: React.FC = () => {
                             </div>
 
                             <div>
+                                <label className="block text-white/80 mb-2">
+                                    {language === 'en' ? 'Photo URL (optional)' : 'Ссылка на фото (необязательно)'}
+                                </label>
+                                <input
+                                    {...register('photo_url')}
+                                    type="url"
+                                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                    placeholder={language === 'en' ? 'https://...' : 'https://...'}
+                                />
+                                <div className="mt-3">
+                                    <label className="block text-white/60 text-sm mb-2">
+                                        {language === 'en' ? 'Or upload from device' : 'Или загрузить с устройства'}
+                                    </label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => handlePhotoUpload(e.target.files?.[0])}
+                                        className="block w-full text-white/70 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white/10 file:text-white hover:file:bg-white/20"
+                                    />
+                                    {photoUploading && (
+                                        <p className="text-white/60 text-sm mt-2">
+                                            {language === 'en' ? 'Uploading...' : 'Загрузка...'}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div>
                                 <label className="block text-white/80 mb-2">{t('mood')}</label>
                                 <div className="flex space-x-4">
                                     {[1, 2, 3, 4, 5].map((mood) => {
@@ -402,7 +513,7 @@ const Diary: React.FC = () => {
                     <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
                         <p className="text-red-200">{error}</p>
                         <button
-                            onClick={() => refreshEntries(selectedDate)}
+                            onClick={() => refreshEntries()}
                             className="mt-2 text-red-200 hover:text-white underline"
                         >
                             {language === 'en' ? 'Try again' : 'Попробовать снова'}
@@ -441,8 +552,8 @@ const Diary: React.FC = () => {
                                             <div className="flex items-center space-x-4 mb-3">
                                                 <span className="text-white/60">{entry.date?.split('T')[0]}</span>
                                                 <div className="flex items-center text-white/60">
-                                                    <span className="mr-2">{getTimeIcon() || '🕐'}</span>
-                                                    <span>{getTimeDisplay?.(entry.time) || new Date(entry.created_at).toTimeString().slice(0, 5)}</span>
+                                                    <span className="mr-2">{getTimeIcon(entry.time) || '🕐'}</span>
+                                                    <span>{getTimeDisplay(entry.time || new Date(entry.created_at).toTimeString().slice(0, 5))}</span>
                                                 </div>
                                                 {emoji && (
                                                     <div className={`inline-flex items-center justify-center w-8 h-8 bg-gradient-to-r ${(moodColors as any)[entry.mood!]} rounded-full`}>
@@ -451,6 +562,18 @@ const Diary: React.FC = () => {
                                                 )}
                                             </div>
                                             <p className="text-white leading-relaxed">{entry.text}</p>
+                                            {getEntryPhotoUrls(entry).length > 0 && (
+                                                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                                    {getEntryPhotoUrls(entry).map((url, index) => (
+                                                        <img
+                                                            key={`${url}-${index}`}
+                                                            src={url}
+                                                            alt={language === 'en' ? 'Diary photo' : 'Фото записи'}
+                                                            className="max-w-full rounded-xl border border-white/20"
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex space-x-2 ml-4">
                                             <button
