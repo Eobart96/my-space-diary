@@ -27,7 +27,7 @@ RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nodejs -u 1001
 
 # Ensure runtime writable dirs exist (uploads + bot settings)
-RUN mkdir -p /app/uploads /app/data && chown -R nodejs:nodejs /app
+RUN mkdir -p /app/uploads /app/data && chown -R nodejs:nodejs /app/uploads /app/data
 
 # Switch to non-root user
 USER nodejs
